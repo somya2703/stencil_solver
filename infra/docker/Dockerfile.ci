@@ -1,0 +1,66 @@
+# Dockerfile.ci — slim image for GitHub Actions CI.
+#
+# Key differences from Dockerfile.dev:
+#   - No Nsight GUI tools (headless only)
+#   - No NCCL (optional install)
+#   - CPU-fallback mode enabled so tests run without a GPU
+#   - Multi-stage build to keep final image lean
+#
+# Build:
+#   docker build -f infra/docker/Dockerfile.ci -t stencil-solver:ci .
+
+ARG CUDA_VERSION=12.4.1
+ARG UBUNTU_VERSION=22.04
+
+# ── Stage 1: builder ──────────────────────────────────────────────────────────
+FROM nvcr.io/nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION} AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake \
+    ninja-build \
+    git \
+    python3 \
+    python3-pip \
+    libopenmpi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir "conan>=2.0" && conan profile detect --force
+
+WORKDIR /src
+COPY conanfile.txt .
+RUN conan install . \
+    --output-folder=build \
+    --build=missing \
+    --settings=build_type=Release \
+    || true   # proceed even if all deps are system-only
+
+COPY . .
+
+# Build with CPU fallback so no GPU is required at build time
+RUN cmake -B build -S . \
+      -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DSTENCIL_CPU_FALLBACK=ON \
+      -DSTENCIL_BUILD_TESTS=ON \
+      -DSTENCIL_BUILD_BENCHMARKS=ON \
+      -DSTENCIL_ENABLE_MPI=OFF \
+      -DSTENCIL_ENABLE_NCCL=OFF \
+      -DCMAKE_CUDA_ARCHITECTURES="70;80;86" \
+    && cmake --build build --parallel "$(nproc)"
+
+# ── Stage 2: test runner ──────────────────────────────────────────────────────
+FROM nvcr.io/nvidia/cuda:${CUDA_VERSION}-base-ubuntu${UBUNTU_VERSION} AS test
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libstdc++6 \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=builder /src/build/bin ./bin
+COPY --from=builder /src/build/CTestTestfile.cmake .
+COPY --from=builder /src/build ./build
+
+# Default: run all unit tests (no GPU needed in CPU_FALLBACK mode)
+CMD ["ctest", "--test-dir", "/app/build", "--output-on-failure", \
+     "--label-regex", "unit", "--parallel", "4"]

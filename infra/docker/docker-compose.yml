@@ -1,0 +1,82 @@
+# docker-compose.yml — local multi-container setup
+#
+# Services:
+#   dev       — interactive dev shell (single GPU)
+#   ci-build  — reproduces the CI build locally
+#   mpi-test  — 2-rank MPI run for multi-GPU testing
+#
+# Usage:
+#   docker compose run --rm dev          # interactive dev
+#   docker compose run --rm ci-build     # CI build check
+#   docker compose up mpi-test           # 2-GPU MPI test
+
+version: "3.9"
+
+x-common: &common
+  build:
+    context: ../..
+    dockerfile: infra/docker/Dockerfile.dev
+  volumes:
+    - ../..:/workspace:cached
+    - ccache:/ccache
+  working_dir: /workspace
+  environment:
+    - CCACHE_DIR=/ccache
+    - CMAKE_BUILD_TYPE=Release
+
+services:
+  dev:
+    <<: *common
+    image: stencil-solver:dev
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: /bin/bash
+
+  ci-build:
+    <<: *common
+    image: stencil-solver:ci
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.ci
+    command: >
+      bash -c "
+        cmake -B build -S . -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DSTENCIL_CPU_FALLBACK=ON
+          -DSTENCIL_BUILD_TESTS=ON
+          -DCMAKE_CUDA_ARCHITECTURES='80;86'
+        && cmake --build build --parallel
+        && ctest --test-dir build --output-on-failure --label-regex unit
+      "
+
+  mpi-test:
+    <<: *common
+    image: stencil-solver:dev
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: >
+      bash -c "
+        cmake -B build-mpi -S . -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DSTENCIL_ENABLE_MPI=ON
+          -DSTENCIL_ENABLE_NCCL=ON
+          -DCMAKE_CUDA_ARCHITECTURES='80;86'
+        && cmake --build build-mpi --parallel
+        && mpirun -n 2 ./build-mpi/bin/stencil_multigpu
+             --nx 256 --ny 256 --nz 256 --steps 100
+      "
+
+volumes:
+  ccache:

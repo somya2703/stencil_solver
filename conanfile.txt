@@ -1,0 +1,12 @@
+[requires]
+gtest/1.14.0
+spdlog/1.13.0
+nlohmann_json/3.11.3
+
+[generators]
+CMakeToolchain
+CMakeDeps
+
+[options]
+gtest*:shared=False
+spdlog*:shared=False

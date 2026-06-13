@@ -1,0 +1,99 @@
+# .github/workflows/benchmark.yml
+# Runs performance benchmarks on a self-hosted GPU runner.
+# Triggered manually (workflow_dispatch) or on release tags.
+# Posts a perf summary as a job summary and as a PR comment (if triggered by PR).
+
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      grid_size:
+        description: "Grid size (NX=NY=NZ)"
+        required: false
+        default: "512"
+      steps:
+        description: "Time steps"
+        required: false
+        default: "200"
+  push:
+    tags: ["v*"]
+
+jobs:
+  benchmark:
+    name: "Kernel benchmarks"
+    # Requires a self-hosted runner with NVIDIA GPU and CUDA installed.
+    # Register with: gh runner add --labels gpu,cuda
+    runs-on: [self-hosted, gpu, cuda]
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Print GPU info
+        run: nvidia-smi
+
+      - name: Install Python deps
+        run: pip3 install --quiet matplotlib numpy pandas
+
+      - name: Configure (Release, real GPU)
+        run: |
+          cmake -B build-bench -S . -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSTENCIL_CPU_FALLBACK=OFF \
+            -DSTENCIL_BUILD_TESTS=OFF \
+            -DSTENCIL_BUILD_BENCHMARKS=ON \
+            -DSTENCIL_ENABLE_NVTX=ON
+
+      - name: Build benchmarks
+        run: cmake --build build-bench --parallel "$(nproc)" --target bench_naive bench_tiled bench_scaling
+
+      - name: Run naive benchmark
+        run: |
+          ./build-bench/bin/bench/bench_naive \
+            --nx ${{ github.event.inputs.grid_size || '512' }} \
+            --ny ${{ github.event.inputs.grid_size || '512' }} \
+            --nz ${{ github.event.inputs.grid_size || '512' }} \
+            --steps ${{ github.event.inputs.steps || '200' }} \
+            --output results/bench_naive.json
+
+      - name: Run tiled benchmark
+        run: |
+          ./build-bench/bin/bench/bench_tiled \
+            --nx ${{ github.event.inputs.grid_size || '512' }} \
+            --ny ${{ github.event.inputs.grid_size || '512' }} \
+            --nz ${{ github.event.inputs.grid_size || '512' }} \
+            --steps ${{ github.event.inputs.steps || '200' }} \
+            --output results/bench_tiled.json
+
+      - name: Run scaling benchmark
+        run: |
+          ./build-bench/bin/bench/bench_scaling \
+            --output results/bench_scaling.json
+
+      - name: Generate plots
+        run: |
+          python3 scripts/plot_results.py \
+            --naive  results/bench_naive.json \
+            --tiled  results/bench_tiled.json \
+            --scaling results/bench_scaling.json \
+            --outdir results/plots
+
+      - name: Write job summary
+        run: |
+          echo "## Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Grid:** ${{ github.event.inputs.grid_size || '512' }}³  " >> $GITHUB_STEP_SUMMARY
+          echo "**Steps:** ${{ github.event.inputs.steps || '200' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python3 scripts/summarize_results.py \
+            --naive  results/bench_naive.json \
+            --tiled  results/bench_tiled.json \
+            >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload results + plots
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: results/
+          retention-days: 90

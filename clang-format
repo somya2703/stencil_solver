@@ -1,0 +1,58 @@
+---
+Language: Cpp
+BasedOnStyle: Google
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 100
+AccessModifierOffset: -4
+ConstructorInitializerIndentWidth: 4
+
+# Braces
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Alignment
+AlignConsecutiveAssignments: Consecutive
+AlignConsecutiveDeclarations: false
+AlignTrailingComments: true
+
+# Includes
+IncludeBlocks: Regroup
+IncludeCategories:
+  # CUDA headers
+  - Regex: '^<cuda'
+    Priority: 1
+  # System headers
+  - Regex: '^<'
+    Priority: 2
+  # Project headers
+  - Regex: '^"stencil/'
+    Priority: 3
+  - Regex: '.*'
+    Priority: 4
+SortIncludes: CaseSensitive
+
+# Spacing
+SpaceBeforeParens: ControlStatements
+SpacesInAngles: Never
+SpacesInContainerLiterals: false
+
+# Pointer alignment: right (int* p, not int *p)
+PointerAlignment: Right
+ReferenceAlignment: Right
+
+# Comments
+ReflowComments: false   # don't reflow CUDA-style banner comments
+
+# CUDA: treat __global__, __device__ etc. as regular keywords
+AttributeMacros:
+  - __global__
+  - __device__
+  - __host__
+  - __forceinline__
+  - __shared__
+  - __constant__
+  - __restrict__
