@@ -1,68 +1,10 @@
-# Build directories
 build/
-build-*/
-dist/
-*.egg-info/
-
-# CMake
-CMakeCache.txt
-CMakeFiles/
-cmake_install.cmake
-CTestTestfile.cmake
-compile_commands.json
-_deps/
-
-# Conan
-.conan/
-conan_toolchain.cmake
-
-# Binaries
-*.o
-*.a
-*.so
-*.so.*
-*.dylib
-*.exe
-
-# CUDA
-*.ptx
-*.cubin
-*.fatbin
-
-# Nsight profiling output
-*.nsys-rep
-*.ncu-rep
-*.nvprof
-*.qdrep
-*.sqlite
+build-cpu/
+build-mpi/
 nsight-output/
-
-# Python
+results/
+*.ncu-rep
+*.nsys-rep
+*.json
 __pycache__/
 *.pyc
-*.pyo
-.venv/
-venv/
-
-# Results / plots (committed only for releases)
-results/
-*.json
-!conanfile.txt
-
-# Editor / IDE
-.vscode/settings.json
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Coverage
-*.gcno
-*.gcda
-*.gcov
-coverage.info
-coverage/
-
-# Docker volumes
-ccache/
