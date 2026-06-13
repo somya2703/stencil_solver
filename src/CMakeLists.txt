@@ -39,6 +39,7 @@ set_target_properties(kernels_tiled PROPERTIES
 add_executable(stencil_naive
   main_naive.cpp
   $<TARGET_OBJECTS:kernels_naive>
+  $<TARGET_OBJECTS:kernels_tiled>
 )
 target_link_libraries(stencil_naive PRIVATE stencil_utils stencil_common)
 set_target_properties(stencil_naive PROPERTIES

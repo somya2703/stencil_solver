@@ -67,11 +67,13 @@ set_target_properties(test_kernels PROPERTIES LINKER_LANGUAGE CUDA)
   add_gpu_test(test_wave_3d
     SOURCES integration/test_wave_3d.cpp
     LIBS    $<TARGET_OBJECTS:kernels_naive>
+            $<TARGET_OBJECTS:kernels_tiled>
   )
 set_target_properties(test_wave_3d PROPERTIES LINKER_LANGUAGE CUDA)
   add_gpu_test(test_heat_3d
     SOURCES integration/test_heat_3d.cpp
     LIBS    $<TARGET_OBJECTS:kernels_naive>
+            $<TARGET_OBJECTS:kernels_tiled>
   )
 set_target_properties(test_heat_3d PROPERTIES LINKER_LANGUAGE CUDA)
   add_gpu_test(test_kernel_correctness
@@ -117,6 +119,7 @@ if(STENCIL_BUILD_BENCHMARKS)
   add_bench(bench_naive
     SOURCES perf/bench_naive.cpp
     LIBS    $<TARGET_OBJECTS:kernels_naive>
+            $<TARGET_OBJECTS:kernels_tiled>
   )
   add_bench(bench_tiled
     SOURCES perf/bench_tiled.cpp
