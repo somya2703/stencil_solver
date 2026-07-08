@@ -13,8 +13,6 @@
 
 #include "stencil/types.hpp"
 #include <algorithm>
-#include <algorithm>
-#include <algorithm>
 
 #include <cmath>
 #include <stdexcept>
@@ -63,19 +61,25 @@ inline void init_gaussian(HostGrid& g,
                           real_t cx, real_t cy, real_t cz,
                           real_t sigma) {
     const auto& d = g.dims;
-    const real_t icx = cx * static_cast<real_t>(d.nx);
-    const real_t icy = cy * static_cast<real_t>(d.ny);
-    const real_t icz = cz * static_cast<real_t>(d.nz);
+    const real_t icx = cx * static_cast<real_t>(d.nx - 1);
+    const real_t icy = cy * static_cast<real_t>(d.ny - 1);
+    const real_t icz = cz * static_cast<real_t>(d.nz - 1);
     const real_t inv2s2 = real_t{1} / (real_t{2} * sigma * sigma);
 
-    for (std::size_t iz = 0; iz < d.nz; ++iz)
-    for (std::size_t iy = 0; iy < d.ny; ++iy)
-    for (std::size_t ix = 0; ix < d.nx; ++ix) {
+    const std::size_t R = static_cast<std::size_t>(STENCIL_RADIUS);
+    for (std::size_t iz = R; iz < d.nz - R; ++iz)
+    for (std::size_t iy = R; iy < d.ny - R; ++iy)
+    for (std::size_t ix = R; ix < d.nx - R; ++ix) {
         const real_t dx = static_cast<real_t>(ix) - icx;
         const real_t dy = static_cast<real_t>(iy) - icy;
         const real_t dz = static_cast<real_t>(iz) - icz;
         g.at(ix, iy, iz) = std::exp(-(dx*dx + dy*dy + dz*dz) * inv2s2);
     }
+    // Halo cells intentionally left at HostGrid's zero default: the
+    // solver treats the boundary as a fixed Dirichlet-zero region and
+    // never writes to it, so any nonzero IC value there would persist
+    // in device buffers indefinitely and corrupt any reduction (e.g.
+    // total-heat sums) that includes halo cells.
 }
 
 /**
