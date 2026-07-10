@@ -33,12 +33,17 @@ namespace stencil {
 // with zero extra memory traffic.
 __constant__ real_t c_fd[STENCIL_RADIUS + 1];
 
+// Defined in stencil_tiled.cu — uploads this TU's private c_fd copy.
+void upload_fd_coefficients_tiled();
+
 void upload_fd_coefficients() {
     FDCoeffs<STENCIL_RADIUS> fd;
     real_t h[STENCIL_RADIUS + 1];
     h[0] = fd.c0;
     for (int r = 0; r < STENCIL_RADIUS; ++r) h[r + 1] = fd.c[r];
     CUDA_CHECK(cudaMemcpyToSymbol(c_fd, h, sizeof(real_t) * (STENCIL_RADIUS + 1)));
+    upload_fd_coefficients_tiled();
+
 }
 
 // ── Naive kernel ──────────────────────────────────────────────────────────────

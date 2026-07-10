@@ -71,11 +71,18 @@
 
 namespace stencil {
 
-// ── FD coefficients — defined in stencil_naive.cu, shared via separate compilation
-// Both .cu files are compiled with CUDA_SEPARABLE_COMPILATION ON and linked
-// together, so this extern resolves at link time.
-extern __constant__ real_t c_fd[STENCIL_RADIUS + 1];
+// ── FD coefficients in __constant__ memory (tiled TU's own copy) ─────────────
+// Cannot share __constant__ across .cu TUs without device linking tricks.
+// Instead we keep a private copy and upload_fd_coefficients() fills both.
+__constant__ real_t c_fd[STENCIL_RADIUS + 1];
 
+void upload_fd_coefficients_tiled() {
+    FDCoeffs<STENCIL_RADIUS> fd;
+    real_t h[STENCIL_RADIUS + 1];
+    h[0] = fd.c0;
+    for (int r = 0; r < STENCIL_RADIUS; ++r) h[r + 1] = fd.c[r];
+    CUDA_CHECK(cudaMemcpyToSymbol(c_fd, h, sizeof(real_t) * (STENCIL_RADIUS + 1)));
+}
 // ── Tile dimensions ───────────────────────────────────────────────────────────
 // SMEM_X/Y: full block width/height including R-cell halo on each side.
 // The block is exactly SMEM_X × SMEM_Y threads — one thread per SMEM cell.
@@ -134,11 +141,13 @@ void kernel_tiled(
     // Total size: PENCIL_Z + 2R  (= 24 for R=4, PENCIL_Z=16)
     real_t pencil[PENCIL_Z + 2 * STENCIL_RADIUS] = {};
 
-    // ── Pre-fill look-behind portion of pencil ────────────────────────────────
-    // Load planes [iz0 - R, iz0 - R + 1, ..., iz0 + R - 1] into pencil[0..2R-1].
-    // These are the R planes before the first active slab plus R look-ahead planes.
-    #pragma unroll
-    for (int d = 0; d < 2 * R; ++d) {
+    // ── Pre-fill entire pencil ────────────────────────────────────────────────
+    // With shift-at-end design, pencil[d] = plane iz0 - R + d at start of pz=0.
+    // We must pre-fill ALL slots that will be needed before the refill provides them.
+    // pencil[d] for d=0..PENCIL_Z+2R-1 covers planes iz0-R .. iz0+PENCIL_Z+R-1.
+    // The refill each iteration only fills pencil[PENCIL_Z+2R-1], so everything
+    // else must be pre-loaded here.
+    for (int d = 0; d < PENCIL_Z + 2 * R; ++d) {
         const int iz = iz0 - R + d;
         if (xy_valid && iz >= 0 && iz < NZ)
             pencil[d] = p_cur[static_cast<std::ptrdiff_t>(iz) * sz
@@ -149,23 +158,6 @@ void kernel_tiled(
     // ── Main Z loop ───────────────────────────────────────────────────────────
     for (int pz = 0; pz < PENCIL_Z; ++pz) {
         const int iz = iz0 + pz;
-
-        // Shift pencil: pencil[k] ← pencil[k+1].
-        // Pure register-to-register move — zero memory traffic.
-        #pragma unroll
-        for (int d = 0; d < PENCIL_Z + 2 * R - 1; ++d)
-            pencil[d] = pencil[d + 1];
-
-        // Refill look-ahead: load plane iz + R
-        {
-            const int iz_ahead = iz + R;
-            pencil[PENCIL_Z + 2 * R - 1] =
-                (xy_valid && iz_ahead >= 0 && iz_ahead < NZ)
-                ? p_cur[static_cast<std::ptrdiff_t>(iz_ahead) * sz
-                       + static_cast<std::ptrdiff_t>(giy) * sy
-                       + gix]
-                : real_t{0};
-        }
 
         // ── Load XY tile into shared memory ───────────────────────────────────
         // pencil[R] = p_cur at the current Z plane — already in register.
@@ -219,6 +211,23 @@ void kernel_tiled(
         }
 
         __syncthreads();  // protect SMEM before next iteration's load
+
+        // Shift pencil: pencil[k] ← pencil[k+1].
+        // Pure register-to-register move — zero memory traffic.
+        #pragma unroll
+        for (int d = 0; d < PENCIL_Z + 2 * R - 1; ++d)
+            pencil[d] = pencil[d + 1];
+
+        // Refill look-ahead: load plane iz + R + 1 (next iteration's look-ahead)
+        {
+            const int iz_ahead = iz + R + 1;
+            pencil[PENCIL_Z + 2 * R - 1] =
+                (xy_valid && iz_ahead >= 0 && iz_ahead < NZ)
+                ? p_cur[static_cast<std::ptrdiff_t>(iz_ahead) * sz
+                       + static_cast<std::ptrdiff_t>(giy) * sy
+                       + gix]
+                : real_t{0};
+        }
     }
 }
 
@@ -232,6 +241,7 @@ void launch_tiled(
     cudaStream_t    stream)
 {
     NVTX_RANGE("launch_tiled");
+    
 
     const real_t inv_dx2 = real_t{1} / (grid.dx * grid.dx);
     const real_t inv_dy2 = real_t{1} / (grid.dy * grid.dy);

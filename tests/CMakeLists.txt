@@ -132,4 +132,9 @@ if(STENCIL_BUILD_BENCHMARKS)
             $<TARGET_OBJECTS:kernels_tiled>
             $<$<NOT:$<BOOL:${STENCIL_CPU_FALLBACK}>>:$<TARGET_OBJECTS:kernels_multigpu>>
   )
+  set_target_properties(bench_scaling PROPERTIES
+  CUDA_SEPARABLE_COMPILATION ON
+  CUDA_RESOLVE_DEVICE_SYMBOLS ON
+  LINKER_LANGUAGE CUDA
+  )
 endif()
