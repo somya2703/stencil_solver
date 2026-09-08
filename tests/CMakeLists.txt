@@ -20,6 +20,7 @@ function(add_unit_test target)
   gtest_discover_tests(${target}
     PROPERTIES LABELS "unit"   # filtered in by CI: --label-regex unit
     DISCOVERY_TIMEOUT 60
+    DISCOVERY_MODE PRE_TEST
   )
 endfunction()
 
@@ -43,6 +44,7 @@ function(add_gpu_test target)
   gtest_discover_tests(${target}
     PROPERTIES LABELS "gpu"   # CI runs these only on self-hosted GPU runners
     DISCOVERY_TIMEOUT 120
+    DISCOVERY_MODE PRE_TEST
   )
 endfunction()
 

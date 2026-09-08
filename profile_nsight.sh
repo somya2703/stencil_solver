@@ -81,7 +81,7 @@ run_compute() {
         --metrics "$METRICS_STR" \
         --launch-count "$LAUNCH_COUNT" \
         --target-processes all \
-        -o "$OUTDIR/${name}" \
+        --output "$OUTDIR/${name}" \
         "$binary" "${args[@]}"
 
     echo "   Open: ncu-ui $OUTDIR/${name}.ncu-rep"

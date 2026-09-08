@@ -31,6 +31,15 @@ option(STENCIL_CPU_FALLBACK      "Replace CUDA kernels with OpenMP"  OFF)
 option(STENCIL_ENABLE_COVERAGE   "Enable gcov/lcov coverage flags"   OFF)
 option(STENCIL_FP64              "Use double precision (default: fp32)" OFF)
 
+# ── Tiled-kernel tuning knobs ──────────────────────────────────────────────────
+# Defaults match the values baked into include/stencil/types.hpp (A100-class
+# occupancy). Override on GPUs with fewer SMs / smaller register file — e.g.
+# a 20-SM laptop Ada part often does better with a smaller pencil/block:
+#   cmake -B build -S . -DSTENCIL_TILE_Y=4 -DSTENCIL_PENCIL_Z=8 ...
+# TILE_X must stay 32 (warp size) for coalesced X loads; not exposed here.
+set(STENCIL_TILE_Y   8 CACHE STRING "Tiled kernel: SMEM tile height (Y)")
+set(STENCIL_PENCIL_Z 16 CACHE STRING "Tiled kernel: register Z-pencil depth")
+
 # ── CUDA architecture ─────────────────────────────────────────────────────────
 # Override: cmake -DCMAKE_CUDA_ARCHITECTURES="80;86"
 if(NOT CMAKE_CUDA_ARCHITECTURES)
@@ -107,6 +116,8 @@ target_compile_definitions(stencil_common INTERFACE
   $<$<BOOL:${STENCIL_ENABLE_NVTX}>:ENABLE_NVTX>
   $<$<BOOL:${STENCIL_ENABLE_MPI}>:ENABLE_MPI>
   $<$<BOOL:${STENCIL_ENABLE_NCCL}>:ENABLE_NCCL>
+  TILE_Y=${STENCIL_TILE_Y}
+  PENCIL_Z=${STENCIL_PENCIL_Z}
 )
 
 target_link_libraries(stencil_common INTERFACE
@@ -153,6 +164,8 @@ message(STATUS "╠════════════════════�
 message(STATUS "║  Build type   : ${CMAKE_BUILD_TYPE}")
 message(STATUS "║  CUDA archs   : ${CMAKE_CUDA_ARCHITECTURES}")
 message(STATUS "║  Precision    : ${_precision_str}")
+message(STATUS "║  Tile Y       : ${STENCIL_TILE_Y}")
+message(STATUS "║  Pencil Z     : ${STENCIL_PENCIL_Z}")
 message(STATUS "║  CPU fallback : ${STENCIL_CPU_FALLBACK}")
 message(STATUS "║  MPI          : ${STENCIL_ENABLE_MPI}")
 message(STATUS "║  NCCL         : ${STENCIL_ENABLE_NCCL}")

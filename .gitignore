@@ -8,3 +8,19 @@ results/
 *.json
 __pycache__/
 *.pyc
+# Build directories
+build/
+build-*/
+cmake-build-*/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+cmake_install.cmake
+install_manifest.txt
+
+# Ninja
+.ninja_deps
+.ninja_log
+build.ninja
