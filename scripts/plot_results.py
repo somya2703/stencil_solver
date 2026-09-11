@@ -218,7 +218,7 @@ def write_markdown_report(naive: dict, tiled: dict, scaling: dict,
     speedups = []
     for n_r, t_r in zip(naive.get("results", []), tiled.get("results", [])):
         if n_r["time_ms"] > 0:
-            speedups.append(t_r["time_ms"] / n_r["time_ms"])
+            speedups.append(n_r["time_ms"] / t_r["time_ms"])
 
     avg_speedup = np.mean(speedups) if speedups else 0.0
 
