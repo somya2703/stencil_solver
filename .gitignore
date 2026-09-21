@@ -24,3 +24,9 @@ install_manifest.txt
 .ninja_deps
 .ninja_log
 build.ninja
+
+# session artifacts
+*.log
+gpu-clocks*.csv
+results-prev/
+tuning_results-prev/
