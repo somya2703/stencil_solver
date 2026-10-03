@@ -82,15 +82,13 @@ GoogleTest automatically.
 Compile only for Ada Lovelace (SM 8.9) instead of the default
 architecture list (`70;75;80;86;90`) to save build time.
 
-Also pass the tiled-kernel tuning knobs. **This matters more than it
-looks**: the defaults baked into `include/stencil/types.hpp`
-(`TILE_Y=8`, `PENCIL_Z=16` → 640-thread blocks, a 24-deep register
-pencil) were sized for A100-class SM counts and register files. On a
-20-SM laptop part they tend to *hurt* — the block is too large and the
-pencil too deep for good occupancy, and the naive kernel can end up
-looking faster than tiled purely as an artifact of mistuning, not
-because tiling doesn't help. `CMakeLists.txt` exposes exactly the
-knobs needed to fix this:
+Also pass the tiled-kernel tuning knobs. The best configuration measured
+on this GPU is `TILE_Y=8, PENCIL_Z=12`: tiled runs at about 0.71x of naive
+at 512^3, so it is still *slower* than naive (see Section 5B and
+`docs/CASE_STUDY.md` section 3.2 for why). The previous recommendation of
+`TILE_Y=4, PENCIL_Z=8` measures worse (0.58x at 512^3), because a smaller
+`TILE_Y` shrinks the useful fraction of each block (Section 8B).
+`CMakeLists.txt` exposes the knobs:
 
 ```bash
 cmake -B build -S . \
@@ -99,8 +97,8 @@ cmake -B build -S . \
     -DSTENCIL_BUILD_BENCHMARKS=ON \
     -DSTENCIL_ENABLE_NVTX=ON \
     -DCMAKE_CUDA_ARCHITECTURES="89" \
-    -DSTENCIL_TILE_Y=4 \
-    -DSTENCIL_PENCIL_Z=8
+    -DSTENCIL_TILE_Y=8 \
+    -DSTENCIL_PENCIL_Z=12
 ```
 
 **Expected output:**
@@ -115,8 +113,8 @@ cmake -B build -S . \
 ║  Build type   : Release
 ║  CUDA archs   : 89
 ║  Precision    : FP32
-║  Tile Y       : 4
-║  Pencil Z     : 8
+║  Tile Y       : 8
+║  Pencil Z     : 12
 ║  CPU fallback : OFF
 ║  MPI          : OFF
 ║  NCCL         : OFF
@@ -158,13 +156,6 @@ nvidia-smi --query-gpu=compute_cap --format=csv,noheader
 > This header ships with the toolkit on some CUDA 12.8+ installs — if
 > `nvtx3/nvtx3.hpp` is already present under your CUDA include path,
 > this step is unnecessary; the configure/build will simply succeed.
-
-If you'd rather see the *mistuned* A100-defaults behavior first (to
-understand why the flags matter), configure once without
-`-DSTENCIL_TILE_Y`/`-DSTENCIL_PENCIL_Z`, run Section 6B, and compare
-against a second build with the flags above. On this class of GPU
-the default config can show tiled *slower* than naive — that's the
-mistuning, not a bug in the kernel itself.
 
 ### Step 4 — Build
 
@@ -214,7 +205,7 @@ docker run --gpus all --rm -it \
 ```
 
 Inside the container, run Steps 3–5 above identically (including the
-`-DSTENCIL_TILE_Y=4 -DSTENCIL_PENCIL_Z=8` flags).
+`-DSTENCIL_TILE_Y=8 -DSTENCIL_PENCIL_Z=12` flags).
 
 > ⚠️ **Files created inside the container are root-owned on your
 > host.** By default `docker run` runs as root, so anything the
@@ -376,6 +367,11 @@ longer warmup (e.g. `--warmup 300`). Treat single-digit-warmup timings
 as approximate; Section 6's benchmarks use `--warmup 20` over 200
 timed steps and are the more reliable figures for comparison.
 
+**Use `--warmup 100` or more for steady-state numbers.** A cold process
+with `--warmup 10` can read up to ~12% slower than the steady state
+(256³: ~1.57 ms at warmup 10 vs 1.40 ms at warmup 300). The command above
+keeps `--warmup 10` only so the output matches the block shown.
+
 If you *do* want the 128³/256³/512³ sweep on purpose, just omit
 `--nx/--ny/--nz` entirely (or set exactly 256/256/256), and expect
 three result lines plus a "── Summary ──" table, not the single-line
@@ -400,7 +396,16 @@ large runs.
     --steps 200 --warmup 20
 ```
 
-**Measured output (reference hardware, `-DSTENCIL_TILE_Y=4 -DSTENCIL_PENCIL_Z=8`):**
+> **Note on tile configuration.** The 5B, 6B and 6C output blocks below
+> were captured with `TILE_Y=4, PENCIL_Z=8`, the guide's earlier Step 3
+> setting. Step 3 now builds `8/12`, which is faster for the tiled kernel
+> (512^3: 16.03 ms vs 19.91 ms, 0.72x vs 0.58x of naive). With the new
+> build expect the banner to read `Tile dims : 32 x 8 (SMEM block: 40 x 16)`
+> and `Z pencil depth : 12`, the tiled rows to be roughly 20% lower, and the
+> naive rows unchanged. The other grid sizes have not been re-measured at
+> 8/12 yet; re-run them and replace these blocks when convenient.
+
+**Measured output (reference hardware, captured at `TILE_Y=4, PENCIL_Z=8`):**
 ```
 === stencil-solver: naive vs tiled comparison ===
 
@@ -504,7 +509,7 @@ Results written to: results/bench_naive.json
     --output results/bench_tiled.json
 ```
 
-**Measured output (reference hardware, `-DSTENCIL_TILE_Y=4 -DSTENCIL_PENCIL_Z=8`):**
+**Measured output (reference hardware, captured at `TILE_Y=4, PENCIL_Z=8`):**
 ```
 === bench_tiled — naive vs shared-memory tiled ===
 
@@ -881,8 +886,8 @@ cmake -B build-mpi -S . \
     -DSTENCIL_ENABLE_MPI=ON \
     -DSTENCIL_ENABLE_NVTX=ON \
     -DCMAKE_CUDA_ARCHITECTURES="89" \
-    -DSTENCIL_TILE_Y=4 \
-    -DSTENCIL_PENCIL_Z=8
+    -DSTENCIL_TILE_Y=8 \
+    -DSTENCIL_PENCIL_Z=12
 
 cmake --build build-mpi --parallel $(nproc)
 
@@ -971,7 +976,7 @@ chmod +x scripts/*.sh
 # Configure for this specific GPU, with tiled-kernel tuning
 cmake -B build -S . -DSTENCIL_BUILD_TESTS=ON \
     -DCMAKE_CUDA_ARCHITECTURES="89" \
-    -DSTENCIL_TILE_Y=4 -DSTENCIL_PENCIL_Z=8
+    -DSTENCIL_TILE_Y=8 -DSTENCIL_PENCIL_Z=12
 cmake --build build --parallel $(nproc)
 
 # Unit tests (expect 59/59)
@@ -1121,3 +1126,15 @@ reference hardware):**
     inspection, a prediction-vs-measurement ledger) that goes well
     beyond what this guide covers, rather than duplicating that detail
     inline.
+
+**Checklist item D2:**
+
+24. **Step 3 vs Section 8B contradiction resolved.** Step 3 no longer
+    recommends `TILE_Y=4, PENCIL_Z=8` (which Section 8B and the
+    measurements show is the slowest valid configuration, 0.58x); it now
+    configures the best measured `TILE_Y=8, PENCIL_Z=12` (about 0.71x).
+    The "mistuned A100 defaults" explanation was removed, since tiled is
+    slower than naive at every configuration tested. Added the
+    `--warmup >= 100` steady-state advice to Section 5A. The 5B/6B/6C
+    output blocks are still the 4/8 captures and are labelled as such
+    pending a re-run at 8/12. Section 7 already used `--peak-bw 192`.
