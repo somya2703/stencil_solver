@@ -250,7 +250,7 @@ def write_markdown_report(naive: dict, tiled: dict, scaling: dict,
         "## Plots",
         "",
         f"![Throughput comparison](plots/throughput_comparison.png)",
-        f"![Scaling curves](plots/scaling.png)",
+        *([f"![Scaling curves](plots/scaling.png)"] if (outdir / "scaling.png").exists() else []),
     ]
 
     with open(report_path, "w") as f:
