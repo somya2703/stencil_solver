@@ -10,7 +10,8 @@
  *   ./bench/bench_tiled --nx 512 --steps 200 \
  *       --output results/tiled.json
  *
- * The naive results are written to <output_path>.naive.json automatically.
+ * The naive results are written to <output_stem>_naive.json automatically
+ * (e.g. results/tiled.json -> results/tiled_naive.json).
  */
 
 #include "stencil/config.hpp"
@@ -45,7 +46,7 @@ static void print_device_banner(int device) {
 #endif
 }
 
-// Derive a sibling output path: "results/tiled.json" → "results/naive.json"
+// Derive a sibling output path: "results/tiled.json" → "results/tiled_naive.json"
 static std::string naive_path(const std::string& tiled_path) {
     if (tiled_path.empty()) return {};
     const auto pos = tiled_path.rfind('.');
