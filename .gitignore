@@ -30,9 +30,3 @@ build.ninja
 gpu-clocks*.csv
 results-prev/
 tuning_results-prev/
-
-# session artifacts
-*.log
-gpu-clocks*.csv
-results-prev/
-tuning_results-prev/
