@@ -21,4 +21,3 @@
 ## Plots
 
 ![Throughput comparison](plots/throughput_comparison.png)
-![Scaling curves](plots/scaling.png)
