@@ -53,7 +53,7 @@ using real_t = float;
 #endif
 // Z-pencil depth kept in registers (not shared memory).
 #ifndef PENCIL_Z
-#  define PENCIL_Z 16
+#  define PENCIL_Z 12
 #endif
 
 // ── CUDA error-checking macros ────────────────────────────────────────────────

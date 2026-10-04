@@ -38,7 +38,7 @@ option(STENCIL_FP64              "Use double precision (default: fp32)" OFF)
 #   cmake -B build -S . -DSTENCIL_TILE_Y=4 -DSTENCIL_PENCIL_Z=8 ...
 # TILE_X must stay 32 (warp size) for coalesced X loads; not exposed here.
 set(STENCIL_TILE_Y   8 CACHE STRING "Tiled kernel: SMEM tile height (Y)")
-set(STENCIL_PENCIL_Z 16 CACHE STRING "Tiled kernel: register Z-pencil depth")
+set(STENCIL_PENCIL_Z 12 CACHE STRING "Tiled kernel: register Z-pencil depth")
 
 # ── CUDA architecture ─────────────────────────────────────────────────────────
 # Override: cmake -DCMAKE_CUDA_ARCHITECTURES="80;86"
