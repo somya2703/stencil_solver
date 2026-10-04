@@ -86,12 +86,21 @@ global memory. Adjacent threads in X load overlapping ranges —
 each interior point is loaded ~8 times across a warp in the Y/Z directions.
 
 ```
-Expected Nsight Compute (512³, fp32, A100):
-  DRAM reads:          ~14.7 GB/step
-  L1 hit rate:         ~5%
-  Memory throughput:   ~45% of peak
-  Time per step:       ~3.8 ms
+Measured Nsight Compute (512³, fp32, RTX 4050 Laptop GPU -- this repo's
+actual reference hardware; see docs/CASE_STUDY.md section 3 for the full
+counter-backed methodology):
+  DRAM reads:          ~1.59 GB/step
+  DRAM throughput:     ~95.7% of peak (~192 GB/s)
+  Time per step:       ~11.46 ms
 ```
+
+The ~14.7 GB/step figure quoted in earlier drafts of this README was a
+theoretical worst-case estimate (zero L2 reuse assumed) and was never
+measured on any GPU. On this card the L2 cache absorbs most of the
+redundant neighbour reads, so actual DRAM traffic is far lower -- naive
+is already within ~4.5% of this GPU's practical DRAM-bandwidth floor.
+DRAM byte counts like this depend on the GPU's cache behaviour and
+won't necessarily transfer to other hardware (e.g. an A100's larger L2).
 
 ### Tiled kernel (`src/kernels/stencil_tiled.cu`)
 
@@ -101,13 +110,20 @@ from a per-thread register pencil. Single global memory load per cell.
 ```
 Block:   SMEM_X × SMEM_Y = 40 × 16 = 640 threads
 SMEM:    40 × 16 × 4 B = 2,560 B per block
-Pencil:  PENCIL_Z + 2R = 24 registers per thread
+Pencil:  PENCIL_Z + 2R = 20 live values in the sliding window at this
+         repo's current default (PENCIL_Z=12); the compiler's actual
+         total register count per thread is 48 (the pencil array isn't
+         the only thing using registers) -- see docs/CASE_STUDY.md 3.2
 
-Expected Nsight Compute (512³, fp32, A100):
-  DRAM reads:          ~0.54 GB/step  (27× less)
-  L1 hit rate:         ~75%
-  Memory throughput:   ~22% of peak
-  Time per step:       ~1.1 ms  (~3.5× speedup)
+Measured Nsight Compute (512³, fp32, RTX 4050 Laptop GPU, TILE_Y=8,
+PENCIL_Z=12 -- this repo's current default; see docs/CASE_STUDY.md 3.2):
+  DRAM reads:          ~1.98 GB/step  (MORE than naive's ~1.59 GB, not
+                       less -- see the note below)
+  L1 hit rate:         ~28.8%
+  DRAM throughput:     ~89.0% of peak
+  Time per step:       ~16.1 ms  (0.71× of naive -- tiled is SLOWER on
+                       this GPU, confirmed across every TILE_Y/PENCIL_Z
+                       configuration tested; the best found is this one)
 ```
 
 ### Roofline position
@@ -116,9 +132,22 @@ Expected Nsight Compute (512³, fp32, A100):
 Arithmetic intensity = 56 FLOP / 112 bytes = 0.5 FLOP/byte (R=4, fp32)
 ```
 
-At AI = 0.5 FLOP/byte the kernel is deep in the memory-bound regime.
-The tiled kernel improves by reducing effective DRAM traffic, not by
-changing the arithmetic.
+(This AI is a modelled value -- FLOPs and bytes per point from the
+stencil's own formula, not measured DRAM bytes; see the `BW Eff.`
+caveat in docs/BUILD_AND_RUN.md section 6C for why that distinction
+matters.)
+
+At AI = 0.5 FLOP/byte the kernel is deep in the memory-bound regime on
+any GPU. On datacenter-class hardware (A100, this kernel's original
+design target) the tiled kernel is expected to win by reducing
+effective DRAM traffic. **On this repo's reference hardware (RTX 4050
+Laptop, Ada Lovelace) that is not what happens**: tiled reads *more*
+DRAM than naive at every configuration tested, and naive is already
+near this GPU's practical DRAM-bandwidth ceiling. The measured
+slowdown traces mainly to barrier stalls from halo-only warps and
+extra warp instructions, not to bandwidth utilisation. See
+`docs/CASE_STUDY.md` for the full counter-backed investigation,
+including which candidate explanations hold up and which don't.
 
 ---
 
@@ -154,7 +183,9 @@ step-by-step guide and interpretation notes.
 python3 scripts/plot_results.py \
     --naive  results/bench_tiled_naive.json \
     --tiled  results/bench_tiled.json \
-    --peak-bw 2039 --peak-flops 312 \
+    --peak-bw 192 --peak-flops 12 \
+    # (this card's real peak, not the A100 defaults shown in older
+    # revisions of this command -- see docs/CASE_STUDY.md section 2)
     --outdir docs/plots \
     --report docs/BENCHMARKS.md
 ```

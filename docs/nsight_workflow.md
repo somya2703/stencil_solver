@@ -62,9 +62,14 @@ Open the `.ncu-rep` in `ncu-ui`. The **Speed-of-Light** section shows
 what percentage of theoretical peak is being achieved:
 
 ```
-Memory Throughput:  ~45%  ← memory-bound (not compute-bound)
-Compute Throughput: ~12%  ← confirms memory bottleneck
+Memory Throughput:  95.56%  ← nearly saturating DRAM bandwidth
+Compute Throughput: 41.95%  ← confirms memory bottleneck
 ```
+
+(Measured on this repo's reference hardware -- RTX 4050 Laptop GPU; see
+docs/CASE_STUDY.md section 3.3. This kernel sits much closer to the
+DRAM ceiling than a generic "~45%" example would suggest -- naive is
+within ~4.5% of the practical bandwidth floor on this card.)
 
 **If memory throughput < compute throughput → kernel is memory-bound.**
 This is expected for any stencil with AI < ridge point.
@@ -77,24 +82,35 @@ ncu --metrics \
     dram__bytes_read.sum,\
     dram__bytes_write.sum,\
     l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum,\
-    l1tex__hit_rate,\
+    l1tex__hit_rate.pct,\
+    # (bare `l1tex__hit_rate` fails with a "Failed to find metric regex"
+    # error -- it needs the `.pct` rollup suffix, same fix already applied
+    # to scripts/profile_nsight.sh; see BUILD_AND_RUN.md Troubleshooting)
     sm__warps_active.avg.pct_of_peak_sustained_active \
     --csv \
     ./build/bin/stencil_naive --nx 512 --steps 1
 ```
 
-**What the naive kernel shows:**
+**What the naive kernel actually shows, measured on the reference
+hardware** (the `(6R+4) × sizeof(float) × N_interior` formula below is
+the *theoretical* compulsory-traffic estimate assuming zero L2 reuse --
+it is not what `dram__bytes_read.sum` reports):
 
-- `dram__bytes_read.sum` ≈ `(6R+4) × sizeof(float) × N_interior`
-  = 28 × 4 × 509³ ≈ **14.7 GB** per step for 512³ (R=4)
-  → confirms every neighbour is fetched from DRAM
+- Formula estimate: 28 × 4 × 509³ ≈ **14.7 GB** per step for 512³ (R=4)
+- `dram__bytes_read.sum` **measured: ~1.59 GB** per step -- about 9×
+  lower than the formula, because this GPU's L2 cache absorbs most of
+  the redundant neighbour reads before they reach DRAM
 
-- `l1tex__hit_rate` ≈ 3–8%
-  → X-direction loads hit L1 (contiguous), Y/Z do not (strided)
+- `dram__throughput.avg.pct_of_peak_sustained_elapsed` **measured:
+  95.7% of peak** -- naive is close to saturating DRAM bandwidth
+  overall, not because of poor coalescing (the uncoalesced-access rule
+  found only ~6% excess sectors here) but simply because of the total
+  compulsory byte volume at this GPU's ~192 GB/s peak
 
-- Memory throughput ≈ 40–55% of peak
-  → strided Y/Z loads are only partially coalesced (warp touches multiple
-     cache lines per instruction for stride > 128 bytes)
+See docs/CASE_STUDY.md section 3.3 for the full derivation and the
+`BW Eff.`/roofline caveat this implies for every "GB/s" figure this
+repo's own console and JSON output print (those are the formula
+number, not a DRAM measurement).
 
 ---
 
@@ -106,20 +122,35 @@ ncu --metrics \
 # → nsight-output/<timestamp>/stencil_tiled.ncu-rep
 ```
 
-**What the tiled kernel shows:**
+**What the tiled kernel actually shows, measured on the reference
+hardware** (TILE_Y=8, PENCIL_Z=12 -- this repo's current default; full
+sweep and counter detail in docs/CASE_STUDY.md section 3.2-3.4):
 
-- `dram__bytes_read.sum` ≈ `sizeof(float) × N_total`
-  ≈ 4 × 512³ ≈ **0.54 GB** per step
-  → ~27× fewer DRAM reads (6R+4 = 28 → 1 effective load/cell)
+- Formula estimate: 4 × 512³ ≈ **0.54 GB** per step -- the kernel's own
+  design goal of ~27× fewer DRAM reads than naive's formula estimate
+- `dram__bytes_read.sum` **measured: ~1.98 GB** per step -- *more* DRAM
+  traffic than naive's measured 1.59 GB, the opposite of the design
+  intent. Reads follow a two-term model (compulsory bytes + a re-read
+  of the 2R halo planes at each Z-slab boundary) that fits every
+  PENCIL_Z value tested within ~3%
 
-- `l1tex__hit_rate` ≈ 70–80%
-  → XY plane served from SMEM; Z pencil from registers
+- `l1tex__t_sector_hit_rate.pct` **measured: ~28.8%** (not 70-80%)
 
-- `l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum` ≈ 0
-  → SMEM_X = 40 breaks the 32-bank conflict pattern
+- `dram__throughput...` **measured: ~89.0% of peak** (not 20-30%) --
+  still close to the DRAM ceiling, not shifted away from it
 
-- Memory throughput % of peak: drops to ~20–30%
-  → bottleneck shifts from DRAM bandwidth to SMEM latency/occupancy
+- `l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum` was not
+  measured in this investigation, so the "SMEM_X=40 avoids bank
+  conflicts" claim is unverified, not confirmed ≈0 -- don't cite it as
+  measured. What *was* confirmed: tiled kernels are flagged for
+  uncoalesced **global** memory access (~23% excess sectors, vs ~6%
+  for naive), a separate issue from SMEM bank conflicts; a 40-wide
+  block (not a multiple of 32) is the suspected cause, inferred from
+  source, not independently isolated
+
+- The actual measured cause of the slowdown is barrier stalls (33-51%
+  of warp-active cycles, vs 0% for naive) and 1.6-2.4× more warp
+  instructions per output cell, not a DRAM-vs-SMEM latency shift
 
 ### Side-by-side comparison (ncu-ui diff view)
 
@@ -143,6 +174,17 @@ a summary diff automatically:
 This profiles `stencil_naive` and `stencil_tiled` back-to-back and
 writes both `.ncu-rep` files to the same timestamped directory.
 
+> ⚠️ The summary diff table this mode prints is documented elsewhere in
+> this repo as broken (`ncu --csv` emits long-format CSV -- one row per
+> metric, generic `"Metric Name"`/`"Metric Value"` columns -- but the
+> script's parser looks metric names up as if they were column headers,
+> so every lookup silently returns nothing; see BUILD_AND_RUN.md's
+> Troubleshooting table). This has **not** been independently re-run and
+> confirmed as part of the current investigation -- see checklist item
+> M6. Until that's done, use Section 8C-8D of `BUILD_AND_RUN.md` for a
+> validated manual `ncu`/`ncu-ui` workflow instead of this script's
+> `compare` mode.
+
 ---
 
 ## Step 5 — Occupancy analysis
@@ -153,20 +195,31 @@ For the tiled kernel, run the occupancy calculator:
 ncu --set roofline ./build/bin/stencil_tiled --nx 512 --steps 1
 ```
 
-Expected for Ampere (A100), fp32, R=4:
+Measured on this repo's reference hardware (RTX 4050 Laptop GPU, Ada
+Lovelace SM 8.9, 20 SMs), at TILE_Y=8/PENCIL_Z=12 -- the current default:
 
 | Parameter | Value |
 |---|---|
 | Block size | 40 × 16 = 640 threads |
-| Registers/thread | ~40 |
+| Registers/thread | 48 |
 | SMEM/block | 2,560 B |
-| Theoretical occupancy | ~50% |
-| Achieved occupancy | ~45–55% |
+| Theoretical occupancy | 83.3% |
+| Achieved occupancy (`sm__warps_active`) | 82.8% |
 
-The 640-thread block is larger than the 512-thread sweet spot for many
-Ampere SMs, but the low SMEM footprint (2.5 KB) means many blocks can
-run concurrently. Tuning `TILE_Y` from 8 to 4 reduces block size to
-320 and can improve occupancy at the cost of fewer Y reuses.
+**`TILE_Y=4` does not improve occupancy-limited performance here -- it
+measures as the *slowest* valid configuration tested (0.58× of naive,
+vs 0.71× at TILE_Y=8/PENCIL_Z=12).** A smaller `TILE_Y` shrinks a
+fixed `2·STENCIL_RADIUS`-cell halo border's share of *useful* block
+work faster than it shrinks the block itself, so the occupancy gain
+doesn't translate to a speed gain. More generally, occupancy does not
+order the tiled configurations on this GPU at all: the
+lowest-occupancy sweep point (62.5%, at TILE_Y=16) is faster than
+several higher-occupancy ones, and occupancy only becomes the
+dominant factor once PENCIL_Z reaches 28 or more (where the register
+count jumps and a 640-thread block drops from two resident blocks per
+SM to one). See docs/CASE_STUDY.md section 3.2-3.4 for the full sweep
+and the counter-level explanation -- don't re-derive the "shrink the
+block for more occupancy" intuition from scratch, it doesn't hold here.
 
 ---
 
@@ -217,13 +270,25 @@ Attained GFLOP/s (Y)
 ```
 
 Both naive and tiled points appear at the **same X position** (same
-arithmetic intensity — the kernel does the same math either way).
-The tiled point is **higher on Y** because it achieves better bandwidth
-utilisation, not because it changes the algorithm.
+arithmetic intensity — the kernel does the same math either way). On
+datacenter-class hardware (this kernel's original design target) the
+tiled point is expected to sit **higher on Y**, from better bandwidth
+utilisation, without changing the algorithm.
 
-This is the correct interpretation to give in a performance report or
-interview: *"The optimisation doesn't change the arithmetic intensity,
-it improves how efficiently we use the available memory bandwidth."*
+**On this repo's reference hardware the tiled point sits LOWER than
+naive, not higher** -- naive attains ~625 GFLOP/s at 512³, tiled only
+~449 GFLOP/s (0.71× of naive's throughput). The interview-soundbite
+framing below is the textbook story for the kernel's intended
+A100-class target; state plainly which hardware you're describing
+before using it, since this repo's own reference measurements are the
+counter-example, not confirmation:
+
+*"The optimisation doesn't change the arithmetic intensity -- whether
+it improves bandwidth utilisation, and whether that improvement
+outweighs its own overhead, is hardware-dependent and must be
+measured, not assumed."* See `docs/CASE_STUDY.md` for what actually
+limits this kernel on Ada Lovelace: barrier stalls and increased DRAM
+traffic, not an arithmetic-intensity effect.
 
 ---
 
