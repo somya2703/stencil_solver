@@ -37,7 +37,7 @@ static void print_device_banner(int device) {
         std::printf("Device : %s\n", p.name);
         std::printf("Memory : %.1f GB   Peak BW: %.1f GB/s\n",
                     static_cast<double>(p.totalGlobalMem) / 1e9,
-                    static_cast<double>(p.memoryClockRate) * 1e3
+                    2.0 /* DDR: two transfers per memory clock */ * static_cast<double>(p.memoryClockRate) * 1e3
                     * static_cast<double>(p.memoryBusWidth) / 8.0 / 1e9);
     }
 #else

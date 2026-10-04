@@ -40,7 +40,7 @@ static double peak_bandwidth_gbs(int device) {
 #ifndef STENCIL_CPU_FALLBACK
     cudaDeviceProp p{};
     if (cudaGetDeviceProperties(&p, device) == cudaSuccess) {
-        return static_cast<double>(p.memoryClockRate) * 1e3
+        return 2.0 /* DDR: two transfers per memory clock */ * static_cast<double>(p.memoryClockRate) * 1e3
              * static_cast<double>(p.memoryBusWidth) / 8.0 / 1e9;
     }
 #else

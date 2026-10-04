@@ -49,7 +49,7 @@ static void print_device_info(int device) {
                     prop.multiProcessorCount,
                     static_cast<double>(prop.totalGlobalMem) / 1e9);
         std::printf("  Peak bandwidth: %.1f GB/s\n",
-                    static_cast<double>(prop.memoryClockRate) * 1e3
+                    2.0 /* DDR: two transfers per memory clock */ * static_cast<double>(prop.memoryClockRate) * 1e3
                     * static_cast<double>(prop.memoryBusWidth) / 8.0 / 1e9);
     }
 #else

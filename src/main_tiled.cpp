@@ -45,7 +45,7 @@ static void print_device_info(int device) {
                     prop.major, prop.minor, prop.multiProcessorCount);
         std::printf("  Memory  : %.1f GB   Peak BW: %.1f GB/s\n",
                     static_cast<double>(prop.totalGlobalMem) / 1e9,
-                    static_cast<double>(prop.memoryClockRate) * 1e3
+                    2.0 /* DDR: two transfers per memory clock */ * static_cast<double>(prop.memoryClockRate) * 1e3
                     * static_cast<double>(prop.memoryBusWidth) / 8.0 / 1e9);
         std::printf("  SMEM/block (tiled): %d B\n",
                     (TILE_X + 2*STENCIL_RADIUS) *
