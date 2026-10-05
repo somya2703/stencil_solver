@@ -354,7 +354,7 @@ Grid: 255³   steps: 100   warmup: 10
   Interior      : 247 × 247 × 247  =  15.07 M
   Spacing       : dx=10.00 m  dy=10.00 m  dz=10.00 m
   Time step     : dt=3.0000e-03 s
-  Stencil radius: R=4  (8th order)
+  Stencil radius: R=4  (8-th order)
   Memory/field  : 66.33 MB
   Fields (3×p + vel2): 265.30 MB
 
@@ -396,52 +396,46 @@ large runs.
     --steps 200 --warmup 20
 ```
 
-> **Note on tile configuration.** The 5B, 6B and 6C output blocks below
-> were captured with `TILE_Y=4, PENCIL_Z=8`, the guide's earlier Step 3
-> setting. Step 3 now builds `8/12`, which is faster for the tiled kernel
-> (512^3: 16.03 ms vs 19.91 ms, 0.72x vs 0.58x of naive). With the new
-> build expect the banner to read `Tile dims : 32 x 8 (SMEM block: 40 x 16)`
-> and `Z pencil depth : 12`, the tiled rows to be roughly 20% lower, and the
-> naive rows unchanged. The other grid sizes have not been re-measured at
-> 8/12 yet; re-run them and replace these blocks when convenient.
-
-**Measured output (reference hardware, captured at `TILE_Y=4, PENCIL_Z=8`):**
+**Measured output (reference hardware, this repo's current default,
+TILE_Y=8/PENCIL_Z=12):**
 ```
 === stencil-solver: naive vs tiled comparison ===
 
-GPU [0]: NVIDIA GeForce RTX 4050 Laptop GPU  (6.1 GB  |  peak BW: 192.0 GB/s)
+GPU [0]: NVIDIA GeForce RTX 4050 Laptop GPU
+  Compute : 8.9    SMs: 20
+  Memory  : 6.1 GB   Peak BW: 192.0 GB/s
+  SMEM/block (tiled): 2560 B
 
-Stencil radius : 4  (8th-order)
-Tile dims      : 32 × 4  (SMEM block: 40 × 12)
-Z pencil depth : 8
+Stencil radius : 4  (8-th order)
+Tile dims      : 32 × 8  (SMEM block: 40 × 16)
+Z pencil depth : 12
 
 Grid        Naive ms   BW (GB/s)    Tiled ms   BW (GB/s)   Speedup
 --------  ----------  ----------  ----------  ----------  --------
-512         11.467 ms    1250.5       19.907 ms     720.3       0.58×
+512         11.513 ms    1245.5       15.975 ms     897.6       0.72×
 
 ── Naive ────────────────────────────────────────────────
 
 Kernel                         ms/step        GB/s       GFLOP/s   Speedup
 --------------------------  ----------  ----------  ------------  --------
-  naive                       11.467 ms    1250.5          625.2      1.00×
+  naive                       11.513 ms    1245.5          622.7      1.00×
 
 ── Tiled ────────────────────────────────────────────────
 
 Kernel                         ms/step        GB/s       GFLOP/s   Speedup
 --------------------------  ----------  ----------  ------------  --------
-  tiled                       19.907 ms     720.3          360.1      1.00×
+  tiled                       15.975 ms     897.6          448.8      1.00×
 ```
 
-**Tiled is slower than naive on this GPU — at this configuration, and
-at every `TILE_Y`/`PENCIL_Z` combination tested, including after a
-wider sweep.** This is a reproducible, counter-confirmed result, not a
-sign that something is misconfigured. The best configuration found so
-far is `TILE_Y=8, PENCIL_Z=12` at ≈0.71× (still a loss). Naive is
-already within ~4.5% of this GPU's practical DRAM-bandwidth floor, so
-no amount of tile tuning should be expected to make tiled win at this
-grid size and radius. For the counter-level explanation (barrier
-stalls, DRAM-traffic increase, where occupancy does and doesn't
-matter), see `docs/CASE_STUDY.md` §3.
+**Tiled is slower than naive on this GPU — at this configuration
+(this repo's current default, and the best found across the sweep in
+Section 8B), and at every other `TILE_Y`/`PENCIL_Z` combination
+tested.** This is a reproducible, counter-confirmed result, not a sign
+that something is misconfigured. Naive is already within ~4.5% of this
+GPU's practical DRAM-bandwidth floor, so no amount of tile tuning
+should be expected to make tiled win at this grid size and radius. For
+the counter-level explanation (barrier stalls, DRAM-traffic increase,
+where occupancy does and doesn't matter), see `docs/CASE_STUDY.md` §3.
 
 > **Memory ceiling on this card:** don't jump straight to 1024³ —
 > `1024³ × 4 bytes × 4 fields ≈ 17.2 GB`, which will not fit in 6.1 GB.
@@ -471,7 +465,7 @@ mkdir -p results
 Device : NVIDIA GeForce RTX 4050 Laptop GPU
 Memory : 6.1 GB   Peak BW: 192.0 GB/s
 
-Radius : 4  (8th order)
+Radius : 4  (8-th order)
 Steps  : 200  Warmup: 20
 
 Grid         ms/step        GB/s       GFLOP/s
@@ -509,25 +503,26 @@ Results written to: results/bench_naive.json
     --output results/bench_tiled.json
 ```
 
-**Measured output (reference hardware, captured at `TILE_Y=4, PENCIL_Z=8`):**
+**Measured output (reference hardware, this repo's current default,
+TILE_Y=8/PENCIL_Z=12):**
 ```
 === bench_tiled — naive vs shared-memory tiled ===
 
 Device : NVIDIA GeForce RTX 4050 Laptop GPU
 Memory : 6.1 GB   Peak BW: 192.0 GB/s
 
-Radius : 4  (8th order)
+Radius : 4  (8-th order)
 Steps  : 200  Warmup: 20
 
 Grid        Naive ms  Naive GB/s    Tiled ms  Tiled GB/s   Speedup
 --------  ----------  ----------  ----------  ----------  --------
-64           0.012 ms    1663.5        0.028 ms     706.8       0.42×
-128          0.187 ms    1036.5        0.276 ms     702.4       0.68×
-192          0.632 ms    1104.0        0.975 ms     715.9       0.65×
-256          1.401 ms    1219.8        2.353 ms     725.9       0.60×
-320          2.759 ms    1233.0        4.654 ms     730.8       0.59×
-384          4.799 ms    1240.6        8.102 ms     734.8       0.59×
-512         11.477 ms    1249.3       19.892 ms     720.8       0.58×
+64           0.009 ms    2100.4        0.019 ms    1024.2       0.49×
+128          0.158 ms    1226.9        0.199 ms     971.5       0.79×
+192          0.582 ms    1198.8        0.739 ms     943.6       0.79×
+256          1.399 ms    1221.3        1.813 ms     942.3       0.77×
+320          2.756 ms    1234.4        3.550 ms     958.2       0.78×
+384          4.796 ms    1241.3        6.743 ms     882.9       0.71×
+512         11.472 ms    1249.9       16.043 ms     893.8       0.72×
 
 Results written to: results/bench_tiled.json
 Results written to: results/bench_tiled_naive.json
@@ -558,17 +553,17 @@ columns per row instead (tracked as checklist item M1).
 
 Peak BW   : 192.0 GB/s
 Kernel    : tiled
-Radius    : 4  (8th-order)
+Radius    : 4  (8-th order)
 
 Grid         ms/step        GB/s     BW Eff.
 --------  ----------  ----------  ----------
-64           0.028 ms     710.9        370.2%
-96           0.096 ms     791.2        412.1%
-128          0.278 ms     696.5        362.8%
-192          0.977 ms     714.0        371.9%
-256          2.370 ms     720.8        375.4%
-384          8.109 ms     734.2        382.4%
-512         19.935 ms     719.3        374.6%
+64           0.019 ms    1021.7        532.1%
+96           0.056 ms    1371.3        714.1%
+128          0.193 ms    1004.4        523.1%
+192          0.738 ms     945.4        492.3%
+256          1.818 ms     939.9        489.5%
+384          6.737 ms     883.7        460.2%
+512         16.033 ms     894.3        465.7%
 
 Scaling results written to: results/bench_scaling.json
 ```
