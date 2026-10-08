@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
     // ── Summary ───────────────────────────────────────────────────────────────
     if (results.size() > 1) {
         std::printf("\n── Summary ──────────────────────────────────────────\n");
-        stencil::format_perf_table(results, 0);
+        stencil::format_perf_table(results);
     }
 
     // ── JSON output ───────────────────────────────────────────────────────────

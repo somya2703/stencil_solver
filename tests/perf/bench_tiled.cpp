@@ -125,9 +125,9 @@ int main(int argc, char** argv) {
     // Overall summary
     if (!naive_results.empty()) {
         std::printf("\n── Summary ──────────────────────────────────────────────\n");
-        stencil::format_perf_table(naive_results, 0);
+        stencil::format_perf_table(naive_results);
         std::printf("── Tiled ────────────────────────────────────────────────\n");
-        stencil::format_perf_table(tiled_results, 0);
+        stencil::format_perf_table(tiled_results);
     }
 
     // JSON output — separate files for naive and tiled so plot_results.py

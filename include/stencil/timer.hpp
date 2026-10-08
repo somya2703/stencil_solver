@@ -115,7 +115,12 @@ inline void print_speedup(const PerfResult& base, const PerfResult& opt) {
 
 
 // ── Multi-result table (implemented in src/utils/timer.cpp) ──────────────────
-void format_perf_table(const std::vector<PerfResult>& results,
-                       std::size_t baseline_idx = 0);
+// One row per result, labelled by grid size. Each PerfResult is its own
+// independent measurement (a grid-size sweep of one kernel at every real
+// call site) -- there is no cross-row "speedup" to report, so this prints
+// a plain comparison table, not a baseline-relative one. For a same-size
+// naive-vs-tiled speedup, use the dedicated per-row printf each caller
+// already does, or print_speedup() for a single pair.
+void format_perf_table(const std::vector<PerfResult>& results);
 
 }  // namespace stencil

@@ -20,30 +20,35 @@ namespace stencil {
 // target and so future non-inline timer helpers have a home.
 
 /**
- * format_perf_table — print a comparison table to stdout.
+ * format_perf_table — print a per-grid-size comparison table to stdout.
+ *
+ * Every real call site passes a grid-size SWEEP of one kernel (several N,
+ * one result per N) -- not several kernels at the same size -- so there is
+ * no meaningful single "baseline" row to compute a speedup against.
+ * (format_perf_table(results, 0) used to compare every row's time_ms
+ * against row 0 regardless of grid_size, producing meaningless values
+ * like 0.12x when row 0 was a much smaller grid than the row being
+ * printed.) This prints a plain table instead: one row per result,
+ * labelled by its grid_size, with no speedup column.
  *
  * @param results  vector of PerfResult, ordered as they should appear
- * @param baseline index of the baseline entry (speedup denominator)
  */
-void format_perf_table(const std::vector<PerfResult>& results,
-                       std::size_t baseline_idx) {
+void format_perf_table(const std::vector<PerfResult>& results) {
     if (results.empty()) return;
 
-    std::printf("\n%-26s  %10s  %10s  %12s  %8s\n",
-                "Kernel", "ms/step", "GB/s", "GFLOP/s", "Speedup");
-    std::printf("%-26s  %10s  %10s  %12s  %8s\n",
+    std::printf("\n%-26s  %8s  %10s  %10s  %12s\n",
+                "Kernel", "Grid", "ms/step", "GB/s", "GFLOP/s");
+    std::printf("%-26s  %8s  %10s  %10s  %12s\n",
                 std::string(26, '-').c_str(),
-                "----------", "----------", "------------", "--------");
+                "--------", "----------", "----------", "------------");
 
-    const double base_ms = results[baseline_idx].time_ms;
     for (const auto& r : results) {
-        const double speedup = (base_ms > 0.0) ? (base_ms / r.time_ms) : 1.0;
-        std::printf("  %-24s  %8.3f ms  %8.1f     %10.1f    %6.2f×\n",
+        std::printf("  %-24s  %6zu³  %8.3f ms  %8.1f     %10.1f\n",
                     r.label.c_str(),
+                    r.grid_size,
                     r.time_ms,
                     r.bandwidth_gbs,
-                    r.gflops,
-                    speedup);
+                    r.gflops);
     }
     std::printf("\n");
 }
