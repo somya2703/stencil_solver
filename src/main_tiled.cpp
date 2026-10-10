@@ -156,8 +156,8 @@ int main(int argc, char** argv) {
     // ── JSON output ────────────────────────────────────────────────────────────
     // Tiled results → cfg.output_path
     // Naive results → derived _naive path (for plot_results.py --naive flag)
-    stencil::write_results_json(cfg.output_path,              tiled_results, cfg.device);
-    stencil::write_results_json(naive_json_path(cfg.output_path), naive_results, cfg.device);
+    stencil::write_results_json(cfg.output_path,              tiled_results, cfg.device, cfg.steps, cfg.warmup_steps);
+    stencil::write_results_json(naive_json_path(cfg.output_path), naive_results, cfg.device, cfg.steps, cfg.warmup_steps);
 
     return EXIT_SUCCESS;
 }

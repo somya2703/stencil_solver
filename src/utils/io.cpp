@@ -12,6 +12,11 @@
  *   "cuda_version":   "12.4",
  *   "stencil_radius": 4,
  *   "precision":      "fp32",
+ *   "tile_x":         32,
+ *   "tile_y":         8,
+ *   "pencil_z":       12,
+ *   "steps":          200,
+ *   "warmup":         20,
  *   "results": [
  *     {
  *       "label":         "naive",
@@ -79,7 +84,9 @@ static std::string escape_json(const std::string& s) {
 // ── Public API ────────────────────────────────────────────────────────────────
 void write_results_json(const std::string&            path,
                         const std::vector<PerfResult>& results,
-                        int                            device) {
+                        int                            device,
+                        int                            steps,
+                        int                            warmup) {
     if (path.empty()) return;
 
     std::ostringstream js;
@@ -89,6 +96,11 @@ void write_results_json(const std::string&            path,
     js << "  \"stencil_radius\": "  << STENCIL_RADIUS                      << ",\n";
     js << "  \"precision\": \""
        << (sizeof(real_t) == 8 ? "fp64" : "fp32")                         << "\",\n";
+    js << "  \"tile_x\": "          << TILE_X                              << ",\n";
+    js << "  \"tile_y\": "          << TILE_Y                              << ",\n";
+    js << "  \"pencil_z\": "        << PENCIL_Z                            << ",\n";
+    js << "  \"steps\": "           << steps                               << ",\n";
+    js << "  \"warmup\": "          << warmup                              << ",\n";
     js << "  \"results\": [\n";
 
     for (std::size_t i = 0; i < results.size(); ++i) {

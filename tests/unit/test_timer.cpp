@@ -40,6 +40,69 @@ TEST(PerfResult, DefaultValues) {
     EXPECT_DOUBLE_EQ(r.gflops,        0.0);
 }
 
+TEST(FormatPerfTable, LabelsEachRowByGridSize) {
+    std::vector<PerfResult> results;
+    PerfResult a; a.label = "naive"; a.time_ms = 1.403;  a.bandwidth_gbs = 1217.4; a.gflops = 608.7; a.grid_size = 256;
+    PerfResult b; b.label = "naive"; b.time_ms = 11.462; b.bandwidth_gbs = 1250.9; b.gflops = 625.5; b.grid_size = 512;
+    results.push_back(a);
+    results.push_back(b);
+
+    testing::internal::CaptureStdout();
+    format_perf_table(results);
+    const std::string out = testing::internal::GetCapturedStdout();
+
+    EXPECT_NE(out.find("256"), std::string::npos)
+        << "256-cubed row's grid size should appear in the table";
+    EXPECT_NE(out.find("512"), std::string::npos)
+        << "512-cubed row's grid size should appear in the table";
+}
+
+TEST(FormatPerfTable, HasGridColumnNoSpeedupColumn) {
+    std::vector<PerfResult> results;
+    PerfResult a; a.label = "tiled"; a.time_ms = 2.0; a.bandwidth_gbs = 500.0; a.gflops = 250.0; a.grid_size = 128;
+    results.push_back(a);
+
+    testing::internal::CaptureStdout();
+    format_perf_table(results);
+    const std::string out = testing::internal::GetCapturedStdout();
+
+    EXPECT_NE(out.find("Grid"), std::string::npos)
+        << "table header should have a Grid column";
+    EXPECT_EQ(out.find("Speedup"), std::string::npos)
+        << "the meaningless cross-grid-size Speedup column must not return";
+}
+
+TEST(FormatPerfTable, EmptyResultsProducesNoOutput) {
+    std::vector<PerfResult> results;
+    testing::internal::CaptureStdout();
+    format_perf_table(results);
+    const std::string out = testing::internal::GetCapturedStdout();
+    EXPECT_TRUE(out.empty());
+}
+
+TEST(FormatPerfTable, DoesNotCompareDifferentSizedRows) {
+    // Regression guard for the original bug: format_perf_table(results, 0)
+    // used to divide every row's time_ms by row 0's time_ms regardless of
+    // grid_size, so a 512-cubed row measured against a much smaller
+    // baseline row printed a nonsensical "speedup" like 0.12x. There is
+    // no speedup column any more (see HasGridColumnNoSpeedupColumn), but
+    // this test also checks each row's own numbers are preserved
+    // untouched -- i.e. nothing is silently computed relative to another
+    // row.
+    std::vector<PerfResult> results;
+    PerfResult a; a.label = "naive"; a.time_ms = 1.403;  a.bandwidth_gbs = 1217.4; a.gflops = 608.7; a.grid_size = 256;
+    PerfResult b; b.label = "naive"; b.time_ms = 11.462; b.bandwidth_gbs = 1250.9; b.gflops = 625.5; b.grid_size = 512;
+    results.push_back(a);
+    results.push_back(b);
+
+    testing::internal::CaptureStdout();
+    format_perf_table(results);
+    const std::string out = testing::internal::GetCapturedStdout();
+
+    EXPECT_NE(out.find("1.403"), std::string::npos);
+    EXPECT_NE(out.find("11.462"), std::string::npos);
+}
+
 TEST(BandwidthFlops, ScalesWithGrid) {
     GridDims g1; g1.nx = 64;  g1.ny = 64;  g1.nz = 64;
     GridDims g2; g2.nx = 128; g2.ny = 128; g2.nz = 128;

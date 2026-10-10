@@ -53,6 +53,7 @@ if(STENCIL_BUILD_TESTS)
   add_unit_test(test_fd_coeffs   SOURCES unit/test_fd_coeffs.cpp)
   add_unit_test(test_grid        SOURCES unit/test_grid.cpp)
   add_unit_test(test_timer       SOURCES unit/test_timer.cpp)
+  add_unit_test(test_io          SOURCES unit/test_io.cpp)
   add_unit_test(test_solver_cpu  SOURCES unit/test_solver_cpu.cpp)
   add_unit_test(test_solver      SOURCES unit/test_solver.cpp
     LIBS    $<TARGET_OBJECTS:kernels_naive>

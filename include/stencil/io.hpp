@@ -22,9 +22,14 @@ struct ScalingResult {
 };
 
 /// Write benchmark results to a JSON file (no-op if path is empty).
+/// steps/warmup have no default -- a forgotten call site should fail to
+/// compile rather than silently write a placeholder into the JSON that
+/// downstream tooling (plot_results.py, docs/BENCHMARKS.md) would trust.
 void write_results_json(const std::string&             path,
                         const std::vector<PerfResult>& results,
-                        int                            device = 0);
+                        int                            device,
+                        int                            steps,
+                        int                            warmup);
 
 /// Write multi-GPU scaling results to a JSON file.
 void write_scaling_json(const std::string&                path,

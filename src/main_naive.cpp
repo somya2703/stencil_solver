@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
     }
 
     // ── JSON output ───────────────────────────────────────────────────────────
-    stencil::write_results_json(cfg.output_path, results, cfg.device);
+    stencil::write_results_json(cfg.output_path, results, cfg.device, cfg.steps, cfg.warmup_steps);
 
     return EXIT_SUCCESS;
 }

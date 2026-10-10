@@ -132,8 +132,8 @@ int main(int argc, char** argv) {
 
     // JSON output — separate files for naive and tiled so plot_results.py
     // can ingest them with --naive and --tiled flags independently
-    stencil::write_results_json(cfg.output_path,          tiled_results, cfg.device);
-    stencil::write_results_json(naive_path(cfg.output_path), naive_results, cfg.device);
+    stencil::write_results_json(cfg.output_path,          tiled_results, cfg.device, cfg.steps, cfg.warmup_steps);
+    stencil::write_results_json(naive_path(cfg.output_path), naive_results, cfg.device, cfg.steps, cfg.warmup_steps);
 
     return EXIT_SUCCESS;
 }
