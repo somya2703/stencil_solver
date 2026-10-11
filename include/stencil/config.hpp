@@ -42,6 +42,16 @@ struct Config {
     real_t      dy           = static_cast<real_t>(10.0);
     real_t      dz           = static_cast<real_t>(10.0);
 
+    // Explicit-flag tracking (set by parse_args; used to reject a
+    // non-cubic grid request instead of silently discarding --ny/--nz --
+    // every solver currently requires nx == ny == nz. --nx alone is
+    // still the normal way to request an N-cubed cube: that cubing
+    // happens downstream, per-binary, after parse_args returns, so only
+    // --ny/--nz being explicitly passed and disagreeing is an error.
+    // Non-cubic grid support is tracked as future work.
+    bool        ny_explicit  = false;
+    bool        nz_explicit  = false;
+
     // Time stepping
     int         steps        = 100;
     int         warmup_steps = 10;
@@ -84,7 +94,10 @@ struct Config {
  * parse_args — fills a Config from argv.
  *
  * Supported flags:
- *   --nx N  --ny N  --nz N
+ *   --nx N  --ny N  --nz N   (all three must agree if --ny/--nz are
+ *                              given -- non-cubic grids aren't
+ *                              supported yet; pass --nx alone for an
+ *                              NxNxN cube)
  *   --dx F  --dy F  --dz F
  *   --steps N  --warmup N
  *   --velocity F  --diffusivity F
@@ -112,8 +125,8 @@ inline Config parse_args(int argc, char** argv) {
         };
 
         if      (eq("--nx"))          cfg.nx           = next_int();
-        else if (eq("--ny"))          cfg.ny           = next_int();
-        else if (eq("--nz"))          cfg.nz           = next_int();
+        else if (eq("--ny"))          { cfg.ny = next_int(); cfg.ny_explicit = true; }
+        else if (eq("--nz"))          { cfg.nz = next_int(); cfg.nz_explicit = true; }
         else if (eq("--dx"))          cfg.dx           = next_float();
         else if (eq("--dy"))          cfg.dy           = next_float();
         else if (eq("--dz"))          cfg.dz           = next_float();
@@ -141,6 +154,19 @@ inline Config parse_args(int argc, char** argv) {
             throw std::runtime_error(std::string("unknown flag: ") + argv[i]);
         }
     }
+
+    // Reject a non-cubic grid request instead of silently discarding
+    // --ny/--nz (see the field comments above for why --nx alone is
+    // exempt from this check).
+    if ((cfg.ny_explicit || cfg.nz_explicit) &&
+        (cfg.nx != cfg.ny || cfg.ny != cfg.nz)) {
+        throw std::runtime_error(
+            "Non-cubic grids aren't supported yet (got --nx " + std::to_string(cfg.nx) +
+            " --ny " + std::to_string(cfg.ny) + " --nz " + std::to_string(cfg.nz) +
+            ") -- pass --nx alone for an N×N×N cube, or make --ny/--nz "
+            "match it. Non-cubic support is tracked as future work.");
+    }
+
     return cfg;
 }
 
