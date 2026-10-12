@@ -27,12 +27,23 @@ TEST(Config, DefaultValues) {
 
 // ── CLI parsing ───────────────────────────────────────────────────────────────
 TEST(Config, ParseGridSize) {
-    const char* argv[] = {"prog", "--nx", "512", "--ny", "128", "--nz", "64"};
+    const char* argv[] = {"prog", "--nx", "512", "--ny", "512", "--nz", "512"};
     int argc = 7;
     Config cfg = parse_args(argc, const_cast<char**>(argv));
     EXPECT_EQ(cfg.nx, 512u);
-    EXPECT_EQ(cfg.ny, 128u);
-    EXPECT_EQ(cfg.nz, 64u);
+    EXPECT_EQ(cfg.ny, 512u);
+    EXPECT_EQ(cfg.nz, 512u);
+}
+
+TEST(Config, NonCubicGridThrows) {
+    // M4: parse_args now rejects --ny/--nz that disagree with --nx
+    // instead of silently accepting a non-cubic request (every solver
+    // requires a cubic grid; see include/stencil/config.hpp). These are
+    // the exact values this test used to assert passed through
+    // unchanged -- that was the bug.
+    const char* argv[] = {"prog", "--nx", "512", "--ny", "128", "--nz", "64"};
+    int argc = 7;
+    EXPECT_THROW(parse_args(argc, const_cast<char**>(argv)), std::runtime_error);
 }
 
 TEST(Config, ParseSteps) {
