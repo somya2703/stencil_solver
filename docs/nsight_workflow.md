@@ -82,7 +82,7 @@ ncu --metrics \
     dram__bytes_read.sum,\
     dram__bytes_write.sum,\
     l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum,\
-    l1tex__hit_rate.pct,\
+    l1tex__t_sector_hit_rate.pct,\
     # (bare `l1tex__hit_rate` fails with a "Failed to find metric regex"
     # error -- it needs the `.pct` rollup suffix, same fix already applied
     # to scripts/profile_nsight.sh; see BUILD_AND_RUN.md Troubleshooting)
@@ -156,7 +156,7 @@ sweep and counter detail in docs/CASE_STUDY.md section 3.2-3.4):
 
 1. Open `ncu-ui`
 2. File → Open → select `stencil_naive.ncu-rep`
-3. File → Add Baseline → select `stencil_tiled.ncu-rep`
+3. Open the Baselines panel (bottom of the window), select the naive report's tab and use the panel's add-baseline toolbar icon; then switch to `stencil_tiled.ncu-rep`
 4. The diff view highlights every metric where tiled improves on naive
 
 ---

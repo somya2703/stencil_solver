@@ -137,7 +137,7 @@ process (see Appendix A.2 for why this complicated measurement),
 
 ```bash
 ncu --launch-skip 1 --launch-count 1 \
-    --metrics dram__bytes_read.sum,dram__bytes_write.sum,l1tex__hit_rate.pct,\
+    --metrics dram__bytes_read.sum,dram__bytes_write.sum,l1tex__t_sector_hit_rate.pct,\
 sm__throughput.avg.pct_of_peak_sustained_elapsed,\
 sm__warps_active.avg.pct_of_peak_sustained_active,\
 launch__registers_per_thread \
@@ -538,7 +538,7 @@ and use distinct directory names per build context going forward
 (`build`, `build-cpu`, `build-tune`, `build-best`, etc., never reused
 across Docker/host).
 
-### A.2 `--launch-count 1` captures the wrong kernel for multi-kernel binaries
+### A.2 `--launch-count 1` captures the wrong kernel for multi-kernel binaries (fixed in `profile_nsight.sh compare`, M6)
 
 `scripts/profile_nsight.sh`'s `run_compute()` always passes
 `--launch-count 1` to bound profiling overhead. This is correct for a
@@ -552,7 +552,7 @@ directly. Fix used throughout this document:
 binary at `--steps 1 --warmup 0` so exactly two launches occur and the
 skip count is unambiguous.
 
-### A.3 `profile_nsight.sh`'s diff-table parser reads the wrong CSV shape
+### A.3 `profile_nsight.sh`'s diff-table parser reads the wrong CSV shape (fixed, M6)
 
 `ncu --csv --metrics a,b,c` emits **long-format** CSV — one row per
 metric, with generic columns literally named `"Metric Name"` and

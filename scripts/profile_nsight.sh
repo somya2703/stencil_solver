@@ -16,6 +16,12 @@
 #   ./scripts/profile_nsight.sh compare  ./build/bin/stencil_tiled --nx 512 --steps 1
 #
 # The 'compare' mode assumes stencil_naive lives in the same directory as stencil_tiled.
+#
+# Environment variables:
+#   NCU_SET=quick|full       metric depth (default quick)
+#   LAUNCH_COUNT=N           launches profiled per run (default 1)
+#   KERNEL_FILTER=name       pass -k to ncu (compare sets kernel_naive/kernel_tiled)
+#   CLOCK_CONTROL=none|base  ncu clock locking (default none; matches docs/CASE_STUDY.md)
 
 set -euo pipefail
 
@@ -303,7 +309,7 @@ case "$MODE" in
     echo "── Next steps ──────────────────────────────────────────────────"
     echo "  ncu-ui $REP_NAIVE"
     echo "  ncu-ui $REP_TILED"
-    echo "  (File → Add Baseline for side-by-side diff view)"
+    echo "  (open the Baselines panel in ncu-ui for a side-by-side diff)"
     ;;
 
   *)

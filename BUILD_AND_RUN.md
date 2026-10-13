@@ -754,6 +754,13 @@ throughout `docs/CASE_STUDY.md`.)
 > used alone to rank tile configurations; use Section 8B's benchmark
 > sweep for ranking and `ncu` for counter ratios.)
 
+> **`profile_nsight.sh compare`** profiles each binary's own kernel (`KERNEL_FILTER`) and
+> prints a metric table. It runs `ncu` with `--clock-control none` by default (override with
+> `CLOCK_CONTROL=base`); locked base clocks change SM-bound kernels much more than
+> DRAM-bound ones (tiled DRAM throughput read about 80% locked vs about 89% unlocked, naive
+> about 96% either way). The console `ms/step` and speedup lines printed during `ncu` runs are
+> replay artifacts, so ignore them.
+
 ### 8D — Comparing the two reports in `ncu-ui`
 
 ```bash
@@ -930,15 +937,15 @@ for this guide; tracked separately.*
 | Tiled kernel benchmarks slower than naive across the board | This is the measured, reproducible result on this GPU class, confirmed across a wide `TILE_Y`/`PENCIL_Z` sweep — not a tuning mistake | See `docs/CASE_STUDY.md` for the full sweep and the counter-level cause (barrier stalls, extra DRAM traffic); the best configuration found so far is `TILE_Y=8, PENCIL_Z=12` (≈0.71×, still a loss) |
 | Device banner prints `Peak bandwidth: 96.0 GB/s` | The `memoryClockRate * memoryBusWidth / 8` formula in `src/main_*.cpp` and `tests/perf/bench_*.cpp` omits GDDR's ×2 DDR transfer factor | Fixed in the current repo (look for a commit titled "Fix peak DRAM bandwidth..."); expect `192.0 GB/s` after rebuilding. If you still see `96.0`, you're on an older commit or a stale build directory |
 | `docs/BENCHMARKS.md` "Average speedup" doesn't match the per-row table's sign | `write_markdown_report()` in `plot_results.py` averaged `tiled/naive` instead of `naive/tiled` | Fixed in the current repo; if you still see this, check `scripts/plot_results.py` for `speedups.append(n_r["time_ms"] / t_r["time_ms"])` |
-| A multi-size sweep's "Summary" table shows a Speedup column of `1.00×, 0.12×, 0.02×, 0.00×, ...` | `format_perf_table()` compares every row to row 0 regardless of grid size — not a real speedup series | Known limitation (checklist item M1), not yet fixed; read the `ms/step`/`GB/s` columns per row instead and ignore that column |
+| A multi-size sweep's "Summary" table used to show a Speedup column like `1.00×, 0.12×, 0.02×` | `format_perf_table()` compared every row to row 0 regardless of grid size | Fixed (checklist M1): the tables now carry a Grid column and no cross-size Speedup | Rebuild from the current repo |
 | `ctest --label-regex unit` doesn't report 59 tests | A test file wasn't wired into `add_unit_test(...)` in `tests/CMakeLists.txt`, or you're comparing against an older/incorrect expected count | Re-check `tests/CMakeLists.txt`; 59 is the correct total for `test_fd_coeffs`, `test_grid`, `test_timer`, `test_solver_cpu`, `test_solver`, `test_kernels` |
 | Reported GB/s exceeds this GPU's peak at small grid sizes (or even at 512³) | `bandwidth_bytes_per_step()` assumes zero cache reuse; the resulting number tracks L2 traffic, not DRAM bandwidth, at any grid size | Treat every "GB/s"/"BW Eff." figure as a model number, not a DRAM measurement, until checklist item L1 lands; see `docs/CASE_STUDY.md` §3.3 |
 | `bench_scaling`'s `BW Eff.` column reads well above 100% (even 700%+) | Same model-vs-measured-bytes issue as above; the peak-bandwidth fix alone doesn't correct the numerator | Known limitation (checklist item L1); don't trust this column yet |
 | `docs/plots/*.png` or `docs/BENCHMARKS.md` fails to write with `PermissionError` | A prior Docker run (without `--user "$(id -u):$(id -g)"`) left `docs/plots/` (or another output directory) root-owned | `sudo chown -R "$USER:$USER" docs/plots` (or whichever directory is affected) |
-| `./scripts/profile_nsight.sh compare` prints a diff table with every metric showing `—` | `ncu --csv` emits long-format CSV (one row per metric, generic `"Metric Name"`/`"Metric Value"` columns), but the script's `extract()` looks up metric names as if they were column headers, so every lookup silently returns nothing | Use the manual `ncu`/`ncu-ui` workflow in Section 8C–8D instead; if patching the script, pivot parsed rows into `{row["Metric Name"]: row["Metric Value"]}` before any `.get()` lookups |
-| `ncu --launch-count 1` on `stencil_tiled` only ever profiles `kernel_naive`, never `kernel_tiled` | `stencil_tiled`'s binary always launches naive before tiled in one process; `--launch-count 1` stops at the very first launch in the whole run | Use `--launch-skip 1 --launch-count 1` (or `-k kernel_tiled`) with `--steps 1 --warmup 0` on the binary, per Section 8C |
+| `./scripts/profile_nsight.sh compare` prints `—` for metrics | Older script: it parsed `ncu`'s long-format CSV as if it were wide. Current script: a single `—` means that metric came back `n/a` (e.g. `l1tex__hit_rate.pct`) | Fixed (checklist M6): the current script pivots the CSV. If every cell is `—`, update the script |
+| `ncu --launch-count 1` on `stencil_tiled` only ever profiles `kernel_naive`, never `kernel_tiled` | `stencil_tiled`'s binary always launches naive before tiled in one process; `--launch-count 1` stops at the very first launch | For raw `ncu`: use `-k kernel_tiled` (or `--launch-skip 1`) with `--steps 1 --warmup 0`, per Section 8C. `profile_nsight.sh compare` now does this itself via `KERNEL_FILTER` |
 | `ncu: unrecognised option '--output'` | Old script used `--output` instead of `-o` | Already fixed in current `scripts/profile_nsight.sh` — verify you're on the current version |
-| `ncu: Failed to find metric regex ...l1tex__hit_rate...` | Bare `l1tex__hit_rate` needs a rollup suffix | Already fixed to `l1tex__hit_rate.pct` in the current script |
+| `ncu: Failed to find metric regex ...l1tex__hit_rate...` | Bare `l1tex__hit_rate` needs a rollup suffix | The script now uses `l1tex__t_sector_hit_rate.pct` (`l1tex__hit_rate.pct` is accepted but reports `n/a` on Ada with ncu 2025.1) |
 | `ModuleNotFoundError: No module named 'networkx'` | Stray `from networkx import radius` import | Already removed from the current `plot_results.py` |
 | `CUDA_ARCH not supported` | Built for archs that don't include your card | `-DCMAKE_CUDA_ARCHITECTURES="89"` for this card |
 | `cudaErrorMemoryAllocation` on large grids | 6.1 GB VRAM ceiling — `N³ × 4 bytes × 4 fields` grows fast | Stay at or below ~640³; close other GPU consumers first |
