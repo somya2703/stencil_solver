@@ -46,7 +46,7 @@ A counter-backed performance case study of `stencil-solver` (8th-order 3-D wave 
 - **Ranking uses the benchmark binaries only** (200 timed steps, 20 warmup). Their run-to-run spread is under 1% (n = 5: sd 0.03–0.06 ms).
 - **Nsight Compute is used for counter ratios, not for ranking.** Single-launch durations vary about ±5% between profiles, with a launch-order drift (five consecutive `8/16` launches: 17.00 → 15.62 ms). Profiles used `--clock-control none`.
 - **Clock and power state** (`nvidia-smi` sampled during runs): the memory clock was 8001 MHz in all 209 active samples of the tiled run. SM clock averaged 1.86–1.89 GHz in sustained benchmarks and 2.58–2.62 GHz in single-launch `ncu` profiles. Peak power was 55.8 W and peak temperature 58 °C.
-- **Peak DRAM bandwidth.** 8001 MHz × 2 (DDR) × 96-bit ÷ 8 = 192.1 GB/s. Nsight's own `dram__throughput` percentage implies 192.2 GB/s. **[D]**
+- **Peak DRAM bandwidth.** 8001 MHz × 2 (DDR) × 96-bit ÷ 8 = 192.1 GB/s. For the naive kernel, Nsight's `dram__throughput` percentage implies 192.2 GB/s, and an independent read-only kernel (`bench_stream`, §3.7) reaches about 188 GB/s (97.8%). **[D/V]**
 
 ---
 
@@ -193,6 +193,54 @@ The 8/12 and 8/16 outputs were cut at 40 lines, so a missing L1TEX rule there is
 The five-launch check (n = 5 each): time 16.42 → 19.09 ms (Welch t = 6.4); issue-active 37.3 → 34.0% (t = −3.5); eligible warps 0.988 → 0.878 (t = −3.7). The ranges barely separate (eligible 0.93 vs 0.92; issue 35.61 vs 35.51). **Issue-active and eligible warps are not independent explanations.** With instruction count fixed, both are the same fact as "took more cycles" (correlation of time with issue-active inside `8/16`: −0.94). The informative question is why warps stall, and that remains open.
 
 `28 → 32` (+23–26%): registers 60 → 62, occupancy identical (41.5%), instructions flat (1.394 → 1.386 B), no spills. Not profiled further.
+
+### 3.7 Independent bandwidth test (`tests/perf/bench_stream.cu`)
+
+Standalone STREAM-style kernels (grid-stride, `float4`, 2 × 512 MiB buffers, about
+21× the 24 MiB L2; 100 timed reps after 10 warmup; three separate process launches).
+GB = 1e9 bytes, peak = 192.0 GB/s (derived).
+
+| Kernel | Best GB/s | Median GB/s | Best % of peak |
+|---|---|---|---|
+| read (B bytes) | 187.7–187.8 | 187.6 | 97.8% |
+| write (B bytes) | 184.1–184.3 | 183.1 | 95.9–96.0% |
+| copy (2B bytes) | 174.1–174.3 | 169.9–172.4 | 90.6–90.8% |
+
+Spread across the three launches is under 1% for read and write and about 1–2% for
+copy. An earlier run with 50 reps and 5 warmup gave a copy median of 151 GB/s, so
+short warmup matters here as well. **[V]**
+
+- **Peak:** a read-only kernel reaches about 98% of the derived peak, so at least
+  about 188 GB/s is achievable. This corroborates the derived 192.0 GB/s but does
+  not measure the ceiling. **[V]**
+- **Mixing cost:** copy (6.16 ms) is about 6.6% slower than read plus write run
+  separately (2.86 + 2.92 = 5.78 ms). **[D]**
+- **Floor for naive:** with 1.59 GB read and 0.517 GB written at the measured
+  read and write rates, the additive floor is about 11.27 ms; naive's 11.46 ms is
+  about 1.7% above it. Naive is about 75% reads, so the copy rate is not its bound.
+  **[D]**
+
+**Nsight cross-check** (`ncu --clock-control none`, one launch each, `--warmup 0`):
+
+| Launch | DRAM read | DRAM write | Duration | bytes÷time | Reported `dram__throughput` |
+|---|---|---|---|---|---|
+| read | 545 MB | 1 MB | 2.92 ms | about 187 GB/s (97.5%) | 97.67% |
+| write | 8.7 MB | 524 MB | 3.50 ms | about 152 GB/s (79.3%) | 90.69% |
+| copy | 537 MB | 526 MB | 7.03 ms | about 151 GB/s (78.8%) | 90.14% |
+
+DRAM byte counts match the expected 537 MB per buffer (write and copy are about
+10 MB low, plausibly dirty lines still in L2 at kernel end, which is **[I]**).
+The percentage agrees with bytes÷time÷192 for the read launch (within 1 point)
+but is about 11 points higher for both write-containing launches; the implied
+"peak" is about 168 GB/s in both. That cannot be a real limit, since the
+steady-state write kernel reaches 184 GB/s, and the single ncu launches are also
+slower than steady state (write 3.50 vs 2.92 ms, copy 7.03 vs 6.16 ms). The cause
+is **[U]**. Until it is understood, treat `dram__throughput` % as a peak
+cross-check only for read-dominated launches (naive, read-only), not for
+write-containing ones. **[V]** for the numbers, **[U]** for the explanation.
+
+Reproduce: `./build/bin/bench/bench_stream --warmup 10 --reps 100`; cross-check
+commands are in the header comment of `tests/perf/bench_stream.cu`.
 
 ---
 
@@ -342,7 +390,7 @@ Each can be checked with a `grep` or a short run; see the reproduction appendix.
 
 - One GPU, one laptop chassis. Power and thermal behavior (mean 1.86–1.89 GHz sustained vs 2.6 GHz single-launch) may differ elsewhere.
 - Toolchain differs from earlier data: CUDA 12.8 here, 12.4 in the repo's earlier benchmark JSON. Results matched the analysis doc within 0.5%, but the difference is not zero.
-- The DRAM peak is derived from a clock, a bus width implied by the code's own printed value, and Nsight's percentage. It was not measured with an independent bandwidth test.
+- The DRAM peak is derived from a clock and a bus width implied by the code's own printed value. A standalone read-only kernel reaches about 188 GB/s (about 98% of the derived 192.0 GB/s), which shows at least that much is achievable; it does not measure the true ceiling. `dram__throughput` % matches bytes÷time÷192 for read-dominated launches but sits about 11 points above it for write-only and copy launches (§3.7); that gap is unexplained.
 - The DRAM-traffic model was fitted post hoc; only three of its points were predicted in advance.
 - Repeat counts are small (n = 5) and only for `8/12` vs `8/16`. Other sweep cells are single runs (1% run-to-run spread, but no confidence intervals).
 - Stall attribution stops at the SASS level. Source-line mapping was not obtained.

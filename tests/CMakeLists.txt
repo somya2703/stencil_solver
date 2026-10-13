@@ -140,4 +140,14 @@ if(STENCIL_BUILD_BENCHMARKS)
   CUDA_RESOLVE_DEVICE_SYMBOLS ON
   LINKER_LANGUAGE CUDA
   )
+
+  # Standalone DRAM bandwidth test (STREAM-style); independent of solver kernels.
+  add_executable(bench_stream perf/bench_stream.cu)
+  target_link_libraries(bench_stream PRIVATE stencil_common)
+  set_target_properties(bench_stream PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/bench")
+  # Label 'bench' (not 'unit'/'gpu') so existing CI filters and test counts are unchanged.
+  add_test(NAME bench_stream_smoke
+           COMMAND bench_stream --mib 64 --reps 3 --warmup 1)
+  set_tests_properties(bench_stream_smoke PROPERTIES LABELS "bench" TIMEOUT 120)
 endif()

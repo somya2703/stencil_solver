@@ -11,7 +11,7 @@ Complete step-by-step instructions with expected output for every command.
 > | **Compute capability** | 8.9 |
 > | **SMs** | 20 |
 > | **Memory** | 6.1 GB |
-> | **Peak memory bandwidth** | ~192 GB/s (measured via Nsight Compute; the commonly-quoted 96 GB/s for this chip omits GDDR6's ×2 DDR transfer factor — see the Troubleshooting table) |
+> | **Peak memory bandwidth** | ~192 GB/s (derived from memory clock and bus width; a read-only kernel in `bench_stream` reaches about 188 GB/s; the commonly-quoted 96 GB/s for this chip omits GDDR6's ×2 DDR transfer factor — see the Troubleshooting table) |
 > | **Peak FP32 (approx.)** | ~12 TFLOP/s *(estimate — check `nvidia-smi -q -d CLOCK` or your OEM spec sheet for the exact sustained figure)* |
 >
 > This revision fixes several inaccuracies found in the previous guide:
@@ -576,6 +576,22 @@ Scaling results written to: results/bench_scaling.json
 > bandwidth-efficiency figure until the numerator is replaced with a
 > measured DRAM-byte count. See `docs/CASE_STUDY.md` §3.3.
 
+### 6D — DRAM bandwidth test (STREAM-style, optional)
+
+An independent check on the ~192 GB/s peak, separate from the solver kernels:
+
+```bash
+./build/bin/bench/bench_stream --warmup 10 --reps 100 --output results/bench_stream.json
+ctest --test-dir build -L bench     # 3-rep smoke test (needs a GPU)
+```
+
+**Measured on the reference hardware** (best of 100 reps, three launches agree):
+read about 188 GB/s (97.8% of 192.0), write about 184 GB/s (96%), copy about
+174 GB/s (90.7%, median about 170-172). The read-only result shows at least
+about 188 GB/s is achievable, consistent with the derived peak. Use `--warmup 10`
+or more: a short warmup gave a copy median of 151 GB/s. In a CPU-fallback build the
+binary compiles and prints a "skipped" line. See `docs/CASE_STUDY.md` §3.7.
+
 ---
 
 ## Section 7 — Generate plots and report
@@ -965,6 +981,7 @@ for this guide; tracked separately.*
 | `bench_naive` | Grid sweep or single size | Console: 7-row sweep table (safe up to 512³ on 6.1 GB). JSON |
 | `bench_tiled` | Same | Console: naive+tiled side-by-side table. Two JSON files |
 | `bench_scaling` | Grid sweep | Console: BW efficiency % table (relative to ~192 GB/s here; see the `BW Eff.` caveat in 6C) |
+| `bench_stream` | Buffer size, reps | Console: read/write/copy GB/s and % of derived peak. Optional JSON |
 | `test_*` | (none) | GoogleTest pass/fail output — 59 unit tests, 15 GPU tests |
 
 ---
