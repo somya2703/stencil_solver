@@ -78,7 +78,7 @@ This is expected for any stencil with AI < ridge point.
 
 ```
 # Run ncu in CLI mode to extract metrics as CSV
-ncu --metrics \
+ncu --clock-control none -k kernel_naive --launch-count 1 --metrics \
     dram__bytes_read.sum,\
     dram__bytes_write.sum,\
     l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum,\
