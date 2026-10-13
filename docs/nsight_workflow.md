@@ -83,9 +83,6 @@ ncu --metrics \
     dram__bytes_write.sum,\
     l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum,\
     l1tex__t_sector_hit_rate.pct,\
-    # (bare `l1tex__hit_rate` fails with a "Failed to find metric regex"
-    # error -- it needs the `.pct` rollup suffix, same fix already applied
-    # to scripts/profile_nsight.sh; see BUILD_AND_RUN.md Troubleshooting)
     sm__warps_active.avg.pct_of_peak_sustained_active \
     --csv \
     ./build/bin/stencil_naive --nx 512 --steps 1
@@ -102,7 +99,7 @@ it is not what `dram__bytes_read.sum` reports):
   the redundant neighbour reads before they reach DRAM
 
 - `dram__throughput.avg.pct_of_peak_sustained_elapsed` **measured:
-  95.7% of peak** -- naive is close to saturating DRAM bandwidth
+  95.7% of peak** (with `--clock-control none`) -- naive is close to saturating DRAM bandwidth
   overall, not because of poor coalescing (the uncoalesced-access rule
   found only ~6% excess sectors here) but simply because of the total
   compulsory byte volume at this GPU's ~192 GB/s peak

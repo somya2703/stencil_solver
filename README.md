@@ -90,7 +90,7 @@ Measured Nsight Compute (512³, fp32, RTX 4050 Laptop GPU -- this repo's
 actual reference hardware; see docs/CASE_STUDY.md section 3 for the full
 counter-backed methodology):
   DRAM reads:          ~1.59 GB/step
-  DRAM throughput:     ~95.7% of peak (~192 GB/s)
+  DRAM throughput:     ~95.7% of peak (~192 GB/s, ncu --clock-control none)
   Time per step:       ~11.46 ms
 ```
 
