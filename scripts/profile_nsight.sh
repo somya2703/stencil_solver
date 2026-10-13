@@ -33,7 +33,7 @@ METRICS=(
     "dram__bytes_write.sum"
     # L1 hit rate
     "l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum"
-    "l1tex__hit_rate.pct"
+    "l1tex__t_sector_hit_rate.pct"
     # Memory throughput
     "sm__throughput.avg.pct_of_peak_sustained_elapsed"
     # SMEM bank conflicts (tiled kernel)
@@ -66,6 +66,10 @@ run_compute() {
     local name
     name=$(basename "$binary")
 
+    local k_args=()
+    if [[ -n "${KERNEL_FILTER:-}" ]]; then
+        k_args=(-k "$KERNEL_FILTER")
+    fi
     local set_args=()
     if [[ "$NCU_SET" == "full" ]]; then
         set_args=(--set full)
@@ -78,6 +82,7 @@ run_compute() {
 
     ncu \
         "${set_args[@]}" \
+        "${k_args[@]}" \
         --metrics "$METRICS_STR" \
         --launch-count "$LAUNCH_COUNT" \
         --target-processes all \
@@ -127,13 +132,24 @@ print_diff_table() {
     python3 - "$rep_naive" "$rep_tiled" << 'PYEOF'
 import subprocess, sys, csv, io
 
-def extract(rep_path):
-    """Run ncu --import and parse the metrics CSV.
+UNIT_SCALE = {"byte": 1.0, "Kbyte": 1e3, "Mbyte": 1e6,
+              "Gbyte": 1e9, "Tbyte": 1e12}
 
-    A .ncu-rep can contain multiple profiled launches (warmup + timed).
-    We want the *last* row (the timed launch), not the first (a warmup
-    pass) — and some columns can come back as None on ragged rows, so
-    guard against that instead of blindly calling .strip() on everything.
+def _to_float(s):
+    return float(s.replace(",", "").strip())
+
+def extract(rep_path):
+    """Run ncu --import and pivot its LONG-format CSV into {metric: value}.
+
+    ncu --csv emits one row per (launch, metric) with generic columns
+    "ID", "Metric Name", "Metric Unit", "Metric Value".  Metric names only
+    appear as row *values*, never as column headers.  We therefore:
+      - skip any ==PROF== preamble lines before the header,
+      - keep only the last launch ID (the timed one, not a warmup),
+      - strip thousands separators and normalise byte units to bytes,
+      - return values as strings so the caller's truthiness test is safe
+        for a legitimate 0.
+    Falls back to the wide layout (metric names as columns) if present.
     """
     try:
         result = subprocess.run(
@@ -141,19 +157,41 @@ def extract(rep_path):
              "--metrics",
              "dram__bytes_read.sum,"
              "dram__bytes_write.sum,"
-             "l1tex__hit_rate.pct,"
+             "l1tex__t_sector_hit_rate.pct,"
              "sm__throughput.avg.pct_of_peak_sustained_elapsed,"
              "sm__warps_active.avg.pct_of_peak_sustained_active"],
             capture_output=True, text=True, timeout=60)
-        rows = list(csv.DictReader(io.StringIO(result.stdout)))
-        rows = [r for r in rows if r]
+        lines = result.stdout.splitlines()
+        start = next((k for k, ln in enumerate(lines)
+                      if ln.startswith('"ID"') or ln.startswith("ID,")), None)
+        if start is None:
+            return {}
+        body = [ln for ln in lines[start:] if not ln.startswith("==")]
+        rows = [r for r in csv.DictReader(io.StringIO("\n".join(body)))
+                if r and r.get("ID") is not None]
         if not rows:
             return {}
-        row = rows[-1]   # last launch = the timed one, not a warmup pass
-        return {
-            (k.strip() if k else k): (v.strip() if v else v)
-            for k, v in row.items()
-        }
+        if "Metric Name" in rows[0]:
+            last_id = rows[-1]["ID"]
+            out = {}
+            for r in rows:
+                if r["ID"] != last_id:
+                    continue
+                name = (r.get("Metric Name") or "").strip()
+                raw = (r.get("Metric Value") or "").strip()
+                if not name or not raw:
+                    continue
+                try:
+                    val = _to_float(raw)
+                except ValueError:
+                    print(f"  Note: {name} = {raw!r} in {rep_path}")
+                    continue
+                val *= UNIT_SCALE.get((r.get("Metric Unit") or "").strip(), 1.0)
+                out[name] = repr(val)
+            return out
+        row = rows[-1]   # wide layout fallback
+        return {(k.strip() if k else k): (v.strip() if v else v)
+                for k, v in row.items()}
     except Exception as e:
         print(f"  Warning: could not extract metrics from {rep_path}: {e}")
         return {}
@@ -171,7 +209,7 @@ rows = [
                               lambda v: f"{float(v)/1e9:.2f}" if v else "—"),
     ("DRAM writes (GB)",      "dram__bytes_write.sum",
                               lambda v: f"{float(v)/1e9:.2f}" if v else "—"),
-    ("L1 hit rate",           "l1tex__hit_rate.pct",
+    ("L1 hit rate",           "l1tex__t_sector_hit_rate.pct",
                               lambda v: f"{float(v):.1f}%" if v else "—"),
     ("Mem throughput % peak", "sm__throughput.avg.pct_of_peak_sustained_elapsed",
                               lambda v: f"{float(v):.1f}%" if v else "—"),
@@ -233,14 +271,14 @@ case "$MODE" in
 
     # Profile naive
     if [[ -x "$NAIVE_BIN" ]]; then
-        run_compute "$NAIVE_BIN" "${BINARY_ARGS[@]}"
+        KERNEL_FILTER=kernel_naive run_compute "$NAIVE_BIN" "${BINARY_ARGS[@]}"
     else
         echo "Warning: $NAIVE_BIN not found — skipping naive profile"
     fi
 
     # Profile tiled
     if [[ -x "$TILED_BIN" ]]; then
-        run_compute "$TILED_BIN" "${BINARY_ARGS[@]}"
+        KERNEL_FILTER=kernel_tiled run_compute "$TILED_BIN" "${BINARY_ARGS[@]}"
     else
         echo "Warning: $TILED_BIN not found — skipping tiled profile"
     fi
