@@ -34,8 +34,9 @@ METRICS=(
     # L1 hit rate
     "l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum"
     "l1tex__t_sector_hit_rate.pct"
-    # Memory throughput
+    # Throughput (SM and DRAM)
     "sm__throughput.avg.pct_of_peak_sustained_elapsed"
+    "dram__throughput.avg.pct_of_peak_sustained_elapsed"
     # SMEM bank conflicts (tiled kernel)
     "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum"
     "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum"
@@ -58,6 +59,10 @@ METRICS_STR=$(IFS=,; echo "${METRICS[*]}")
 # timing. For a truly single-launch profile, also pass --warmup 0 --steps 1
 # in the binary args.
 NCU_SET="${NCU_SET:-quick}"
+# ncu locks GPU clocks to base by default, which changes SM-bound kernels
+# (tiled) far more than DRAM-bound ones (naive). "none" matches the
+# docs/CASE_STUDY.md methodology; set CLOCK_CONTROL=base for locked clocks.
+CLOCK_CONTROL="${CLOCK_CONTROL:-none}"
 LAUNCH_COUNT="${LAUNCH_COUNT:-1}"
 
 run_compute() {
@@ -83,6 +88,7 @@ run_compute() {
     ncu \
         "${set_args[@]}" \
         "${k_args[@]}" \
+        --clock-control "$CLOCK_CONTROL" \
         --metrics "$METRICS_STR" \
         --launch-count "$LAUNCH_COUNT" \
         --target-processes all \
@@ -159,6 +165,7 @@ def extract(rep_path):
              "dram__bytes_write.sum,"
              "l1tex__t_sector_hit_rate.pct,"
              "sm__throughput.avg.pct_of_peak_sustained_elapsed,"
+             "dram__throughput.avg.pct_of_peak_sustained_elapsed,"
              "sm__warps_active.avg.pct_of_peak_sustained_active"],
             capture_output=True, text=True, timeout=60)
         lines = result.stdout.splitlines()
@@ -211,7 +218,9 @@ rows = [
                               lambda v: f"{float(v)/1e9:.2f}" if v else "—"),
     ("L1 hit rate",           "l1tex__t_sector_hit_rate.pct",
                               lambda v: f"{float(v):.1f}%" if v else "—"),
-    ("Mem throughput % peak", "sm__throughput.avg.pct_of_peak_sustained_elapsed",
+    ("DRAM throughput % peak", "dram__throughput.avg.pct_of_peak_sustained_elapsed",
+                              lambda v: f"{float(v):.1f}%" if v else "—"),
+    ("SM throughput % peak",  "sm__throughput.avg.pct_of_peak_sustained_elapsed",
                               lambda v: f"{float(v):.1f}%" if v else "—"),
     ("Achieved occupancy",    "sm__warps_active.avg.pct_of_peak_sustained_active",
                               lambda v: f"{float(v):.1f}%" if v else "—"),
