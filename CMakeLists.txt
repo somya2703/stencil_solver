@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.24 FATAL_ERROR)
 
 # ── Project declaration ───────────────────────────────────────────────────────
+# Default CUDA architectures. Must be set BEFORE project(): enabling CUDA there
+# initialises CMAKE_CUDA_ARCHITECTURES to the compiler default (sm_52 on nvcc 12.x).
+# Overridden by -DCMAKE_CUDA_ARCHITECTURES=... or the CUDAARCHS environment variable.
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND NOT DEFINED ENV{CUDAARCHS})
+  set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86;90"
+      CACHE STRING "CUDA SM architectures to compile for")
+endif()
+
 project(stencil_solver
   VERSION 0.1.0
   DESCRIPTION "GPU-accelerated finite-difference stencil solver (heat / wave)"
@@ -42,10 +50,7 @@ set(STENCIL_PENCIL_Z 12 CACHE STRING "Tiled kernel: register Z-pencil depth")
 
 # ── CUDA architecture ─────────────────────────────────────────────────────────
 # Override: cmake -DCMAKE_CUDA_ARCHITECTURES="80;86"
-if(NOT CMAKE_CUDA_ARCHITECTURES)
-  set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86;90"
-      CACHE STRING "CUDA SM architectures to compile for")
-endif()
+# (Default list is set before project() above; setting it here is too late.)
 
 # ── Module path ───────────────────────────────────────────────────────────────
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
