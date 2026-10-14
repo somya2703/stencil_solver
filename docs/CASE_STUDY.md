@@ -253,10 +253,32 @@ The percentage agrees with bytes÷time÷192 for the read launch (within 1 point)
 but is about 11 points higher for both write-containing launches; the implied
 "peak" is about 168 GB/s in both. That cannot be a real limit, since the
 steady-state write kernel reaches 184 GB/s, and the single ncu launches are also
-slower than steady state (write 3.50 vs 2.92 ms, copy 7.03 vs 6.16 ms). The cause
-is **[U]**. Until it is understood, treat `dram__throughput` % as a peak
-cross-check only for read-dominated launches (naive, read-only), not for
-write-containing ones. **[V]** for the numbers, **[U]** for the explanation.
+slower than steady state (write 3.50 vs 2.92 ms, copy 7.03 vs 6.16 ms). The cause is a lowered DRAM clock during those launches (resolution below).
+
+**Resolution.** Re-running with `dram__cycles_elapsed.avg.per_second` recorded
+(`--clock-control none`, one launch each, cold = first launch, warm = after 5 warmups):
+
+| Launch | DRAM clock | bytes÷time | Reported % | Implied peak |
+|---|---|---|---|---|
+| read, cold, `--cache-control all` | 7.99 GHz | 187.8 GB/s | 98.05 | 191.5 |
+| read, cold, `none` | 7.70 | 169.2 | 91.61 | 184.7 |
+| write, cold, `all` | 7.99 | 181.3 | 94.53 | 191.8 |
+| write, cold, `none` | 6.94 | 146.8 | 88.10 | 166.7 |
+| copy, cold, `all` | 7.99 | 172.9 | 90.20 | 191.7 |
+| copy, cold, `none` | 7.84 | 162.5 | 86.34 | 188.2 |
+
+All six warm launches ran at 7.99 GHz and at steady-state times. In every launch the
+implied peak equals 192.0 × (clock ÷ 7.99 GHz) to within about 0.4 GB/s, so
+`dram__throughput` % is normalised to the DRAM clock during the launch, not to a fixed
+192.0 GB/s. At full clock it agrees with bytes÷time÷192 within about 0.4 points for
+read, write and copy. The earlier 11-point gap (write 3.50 ms, copy 7.03 ms) corresponds
+to a clock of about 7.0 GHz; the clock was not recorded for those launches, so that is
+**[I]**. Dips appeared in the `--cache-control none` cold launches and in the earlier
+default-cache-control launches, never in warm ones; why they occur only sometimes is
+**[U]** (a memory-clock ramp after idle is plausible but untested). Use bytes÷time, or
+record the DRAM clock alongside the percentage. **[V]** for the table, **[I]** for the
+mechanism. Other cases where a DRAM-% gap was seen (§5.3, locked vs unlocked clocks) were
+not re-examined with the clock recorded.
 
 Reproduce: `./build/bin/bench/bench_stream --warmup 10 --reps 100`; cross-check
 commands are in the header comment of `tests/perf/bench_stream.cu`.
@@ -409,7 +431,8 @@ Each can be checked with a `grep` or a short run; see the reproduction appendix.
 
 - One GPU, one laptop chassis. Power and thermal behavior (mean 1.86–1.89 GHz sustained vs 2.6 GHz single-launch) may differ elsewhere.
 - Toolchain differs from earlier data: CUDA 12.8 here, 12.4 in the repo's earlier benchmark JSON. Results matched the analysis doc within 0.5%, but the difference is not zero.
-- The DRAM peak is derived from a clock and a bus width implied by the code's own printed value. A standalone read-only kernel reaches about 188 GB/s (about 98% of the derived 192.0 GB/s), which shows at least that much is achievable; it does not measure the true ceiling. `dram__throughput` % matches bytes÷time÷192 for read-dominated launches but sits about 11 points above it for write-only and copy launches (§3.7); that gap is unexplained.
+- The DRAM peak is derived from a clock and a bus width implied by the code's own printed value. A standalone read-only kernel reaches about 188 GB/s (about 98% of the derived 192.0 GB/s), which shows at least that much is achievable; it does not measure the true ceiling. `dram__throughput` % matches bytes÷time÷192 for read-dominated launches but sits about 11 points above it for write-only and copy launches (§3.7); that gap reflects a lowered DRAM clock during those launches, which the
+percentage is normalised to.
 - The DRAM-traffic model was fitted post hoc; only three of its points were predicted in advance.
 - Repeat counts are small (n = 5) and only for `8/12` vs `8/16`. Other sweep cells are single runs (1% run-to-run spread, but no confidence intervals).
 - Stall attribution stops at the SASS level. Source-line mapping was not obtained.
