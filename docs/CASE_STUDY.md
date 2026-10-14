@@ -238,6 +238,28 @@ clocks not recorded):
   rises 4.75 points (barrier +2.9, math -3.3). The only mover above 3 points; mechanism
   untested. **[I]**
 
+**Source-line attribution for 16 -> 20** (`ncu -i ... --page source --print-source cuda,sass --csv`,
+reports `tiled_y8z16` and `tiled_y8z20`; samples summed from SASS rows, which equal the
+line-row totals):
+
+| Line | Source | PZ=16 | PZ=20 | Delta | Dominant stall |
+|---|---|---|---|---|---|
+| L210 | `+ dt2 * vel2[c] * (lap_x + lap_y + lap_z);` | 22,918 | 115,054 | +92,136 | long_sb |
+| L225 | end-of-iteration `__syncthreads` / refill condition | 320,159 | 401,076 | +80,917 | barrier |
+| L159 | `for (int pz = 0; pz < PENCIL_Z; ++pz)` | 5,931 | 71,107 | +65,176 | long_sb |
+| L209 | `- p_prev[c]` | 129,861 | 106,466 | -23,395 | long_sb |
+| L160 | `const int iz = iz0 + pz;` | 73,541 | 0 | -73,541 | long_sb |
+| total | | 781,692 | 928,047 | +146,355 (+18.7%) | |
+
+- The pre-fill and refill lines (L151, L152, L155) change by about 1-2k samples each. **[V]**
+- Samples move between neighbouring lines (L209 to L210, L160 to L159), so single lines
+  mislead: L209+L210 grows by about 69k, and L159+L160 is roughly flat. This is probably the
+  compiler reordering instructions across source lines. **[I]**
+- Reading: the added time sits in long-scoreboard waits on the loads feeding the
+  time-integration expression (`p_prev`, `vel2`) and at the end-of-iteration barrier, not in
+  the pencil refill. **[I]** Consistent with R12 (loads issued late); not tested by changing
+  the kernel.
+
 The mechanism behind both steps remains unresolved.
 
 ### 3.7 Independent bandwidth test (`tests/perf/bench_stream.cu`)
