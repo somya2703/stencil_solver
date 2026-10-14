@@ -234,7 +234,7 @@ MPI_Sendrecv (multi-node, host-staged or CUDA-aware).
 | `STENCIL_CPU_FALLBACK` | `OFF` | OpenMP fallback (no GPU needed) |
 | `STENCIL_FP64` | `OFF` | Double precision (default: fp32) |
 | `STENCIL_ENABLE_COVERAGE` | `OFF` | gcov/lcov coverage |
-| `CMAKE_CUDA_ARCHITECTURES` | `70;75;80;86;90` | Target SM arches |
+| `CMAKE_CUDA_ARCHITECTURES` | `70;75;80;86;90` | Target SM arches. For a single local GPU, `-DCMAKE_CUDA_ARCHITECTURES=native` (CMake ≥ 3.24) builds only for it and is much faster |
 
 ---
 

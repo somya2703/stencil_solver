@@ -412,19 +412,19 @@ Z pencil depth : 12
 
 Grid        Naive ms   BW (GB/s)    Tiled ms   BW (GB/s)   Speedup
 --------  ----------  ----------  ----------  ----------  --------
-512         11.513 ms    1245.5       15.975 ms     897.6       0.72×
+512         11.495 ms    1247.4       15.913 ms     901.1       0.72×
 
 ── Naive ────────────────────────────────────────────────
 
-Kernel                         ms/step        GB/s       GFLOP/s   Speedup
---------------------------  ----------  ----------  ------------  --------
-  naive                       11.513 ms    1245.5          622.7      1.00×
+Kernel                          Grid     ms/step        GB/s       GFLOP/s
+--------------------------  --------  ----------  ----------  ------------
+  naive                        512³    11.495 ms    1247.4          623.7
 
 ── Tiled ────────────────────────────────────────────────
 
-Kernel                         ms/step        GB/s       GFLOP/s   Speedup
---------------------------  ----------  ----------  ------------  --------
-  tiled                       15.975 ms     897.6          448.8      1.00×
+Kernel                          Grid     ms/step        GB/s       GFLOP/s
+--------------------------  --------  ----------  ----------  ------------
+  tiled                        512³    15.913 ms     901.1          450.5
 ```
 
 **Tiled is slower than naive on this GPU — at this configuration
@@ -516,13 +516,15 @@ Steps  : 200  Warmup: 20
 
 Grid        Naive ms  Naive GB/s    Tiled ms  Tiled GB/s   Speedup
 --------  ----------  ----------  ----------  ----------  --------
-64           0.009 ms    2100.4        0.019 ms    1024.2       0.49×
-128          0.158 ms    1226.9        0.199 ms     971.5       0.79×
-192          0.582 ms    1198.8        0.739 ms     943.6       0.79×
-256          1.399 ms    1221.3        1.813 ms     942.3       0.77×
-320          2.756 ms    1234.4        3.550 ms     958.2       0.78×
-384          4.796 ms    1241.3        6.743 ms     882.9       0.71×
-512         11.472 ms    1249.9       16.043 ms     893.8       0.72×
+64           0.009 ms    2101.5        0.019 ms    1024.0       0.49×
+128          0.157 ms    1230.3        0.200 ms     968.7       0.79×
+192          0.582 ms    1199.1        0.740 ms     943.3       0.79×
+256          1.399 ms    1221.1        1.807 ms     945.4       0.77×
+320          2.758 ms    1233.4        3.528 ms     964.0       0.78×
+384          4.801 ms    1240.0        6.717 ms     886.4       0.71×
+512         11.463 ms    1250.8       15.992 ms     896.6       0.72×
+
+(The per-size "Summary" / "Tiled" tables printed below this one are omitted here.)
 
 Results written to: results/bench_tiled.json
 Results written to: results/bench_tiled_naive.json
@@ -557,14 +559,13 @@ Radius    : 4  (8-th order)
 
 Grid         ms/step        GB/s     BW Eff.
 --------  ----------  ----------  ----------
-64           0.019 ms    1021.7        532.1%
-96           0.056 ms    1371.3        714.1%
-128          0.193 ms    1004.4        523.1%
-192          0.738 ms     945.4        492.3%
-256          1.818 ms     939.9        489.5%
-384          6.737 ms     883.7        460.2%
-512         16.033 ms     894.3        465.7%
-
+64           0.019 ms    1022.2        532.4%
+96           0.058 ms    1323.4        689.2%
+128          0.193 ms    1000.2        520.9%
+192          0.732 ms     953.7        496.7%
+256          1.804 ms     947.1        493.2%
+384          6.702 ms     888.4        462.6%
+512         16.011 ms     895.6        466.4%
 Scaling results written to: results/bench_scaling.json
 ```
 
@@ -621,7 +622,7 @@ number — e.g. "1.56×" — over a table where every row showed tiled
 slower) is **fixed** as of this repo's current `plot_results.py`. The
 per-row table and the "Average speedup" line at the bottom of
 `docs/BENCHMARKS.md` now agree: given the 6B data above, both describe
-tiled as roughly 0.59× of naive on average. If you ever see them
+tiled as roughly 0.72× of naive on average. If you ever see them
 disagree again, check that `write_markdown_report()` reads
 `speedups.append(n_r["time_ms"] / t_r["time_ms"])`, not the reciprocal.
 
@@ -1157,3 +1158,8 @@ reference hardware):**
     `--warmup >= 100` steady-state advice to Section 5A. The 5B/6B/6C
     output blocks are still the 4/8 captures and are labelled as such
     pending a re-run at 8/12. Section 7 already used `--peak-bw 192`.
+
+**Follow-up (L5 batch):**
+
+25. **5B/6B/6C output blocks re-measured at `TILE_Y=8, PENCIL_Z=12`.** Tiled is
+    0.49–0.79× of naive across sizes (0.72× at 512³). Added 6D (`bench_stream`).
