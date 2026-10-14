@@ -227,7 +227,8 @@ rows = [
     ("DRAM writes (GB)",      "dram__bytes_write.sum",
                               lambda v: f"{float(v)/1e9:.2f}" if v else "—"),
     ("DRAM clock (GHz)",      "dram__cycles_elapsed.avg.per_second",
-                              lambda v: f"{float(v)/1e9:.2f}" if v else "—"),
+                              lambda v: (f"{float(v)/1e9 if float(v) > 1e6 else float(v):.2f}"
+                                         if v else "—")),
     ("L1 hit rate",           "l1tex__t_sector_hit_rate.pct",
                               lambda v: f"{float(v):.1f}%" if v else "—"),
     ("DRAM throughput % peak", "dram__throughput.avg.pct_of_peak_sustained_elapsed",
