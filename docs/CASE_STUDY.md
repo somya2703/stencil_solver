@@ -211,7 +211,34 @@ The 8/12 and 8/16 outputs were cut at 40 lines, so a missing L1TEX rule there is
 
 The five-launch check (n = 5 each): time 16.42 → 19.09 ms (Welch t = 6.4); issue-active 37.3 → 34.0% (t = −3.5); eligible warps 0.988 → 0.878 (t = −3.7). The ranges barely separate (eligible 0.93 vs 0.92; issue 35.61 vs 35.51). **Issue-active and eligible warps are not independent explanations.** With instruction count fixed, both are the same fact as "took more cycles" (correlation of time with issue-active inside `8/16`: −0.94). The informative question is why warps stall, and that remains open.
 
-`28 → 32` (+23–26%): registers 60 → 62, occupancy identical (41.5%), instructions flat (1.394 → 1.386 B), no spills. Not profiled further.
+`28 → 32` (+23–26%): registers 60 → 62, occupancy identical (41.5%), instructions flat (1.394 → 1.386 B), no spills.
+
+**All-stall-reasons check** (`ncu --clock-control none`, `-k kernel_tiled`, 5 launches averaged per
+PZ after 2 skipped, 512^3, `TILE_Y=8`; stall values are % of warp-active cycles; DRAM and SM
+clocks not recorded):
+
+| PZ | ms | inst (B) | issue-active % | barrier | long_sb | short_sb | math | not_selected | no_inst | branch_res | imc_miss |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 12 | 15.35 | 1.263 | 43.0 | 51.8 | 23.6 | 2.2 | 5.8 | 8.5 | 0.65 | 0.87 | 0.00 |
+| 16 | 15.63 | 1.266 | 41.8 | 48.7 | 28.7 | 0.1 | 4.1 | 7.3 | 0.62 | 1.31 | 0.00 |
+| 20 | 18.88 | 1.313 | 35.5 | 49.5 | 31.3 | 1.9 | 3.7 | 5.7 | 0.40 | 0.99 | 0.00 |
+| 24 | 19.32 | 1.367 | 36.1 | 48.4 | 30.2 | 3.6 | 3.7 | 6.4 | 0.43 | 0.97 | 0.00 |
+| 28 | 23.92 | 1.394 | 28.9 | 41.5 | 28.2 | 2.7 | 5.8 | 7.0 | 0.65 | 1.55 | 0.00 |
+| 32 | 30.04 | 1.386 | 22.4 | 44.4 | 33.0 | 3.9 | 2.5 | 5.0 | 0.45 | 1.15 | 0.00 |
+
+- **16 -> 20:** no stall reason moves by 3 points. The largest is long_scoreboard (+2.6), then
+  short_scoreboard (+1.7). The prediction that no_instruction or branch_resolving would rise
+  by 3 points failed (both fell). **[V]**
+- **Instruction cache excluded as a cause of the 16 -> 20 step:** imc_miss is 0.00 at every PZ and
+  no_instruction stays at or below 0.65%. **[D]**
+- Multiplying share by time, long_scoreboard cycles grow about 32% against about 23% for
+  barrier and 21% for time; this assumes similar active warps, which was not checked for
+  these launches. **[I]**
+- **28 -> 32:** instructions and occupancy are flat, time rises about 26%, and long_scoreboard
+  rises 4.75 points (barrier +2.9, math -3.3). The only mover above 3 points; mechanism
+  untested. **[I]**
+
+The mechanism behind both steps remains unresolved.
 
 ### 3.7 Independent bandwidth test (`tests/perf/bench_stream.cu`)
 
