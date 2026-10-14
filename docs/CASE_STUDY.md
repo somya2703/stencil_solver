@@ -68,6 +68,25 @@ Mean ratio 0.59×. A separate `bench_naive` run reproduced naive at 512³ (11.46
 
 A cold-process, short-warmup run (`--warmup 10`) measures naive 256³ at ~1.57 ms, up to 12% slower than the 1.40 ms steady state reached with `--warmup 300`. Cold-run timings are therefore not comparable with the benchmarks. **[V]**
 
+### 3.1b Naive vs tiled across grid sizes (best config, `8/12`)
+
+Same protocol as §3.1 (`bench_tiled`, 200 steps, 20 warmup, one run per size), built with
+`TILE_Y=8, PENCIL_Z=12`.
+
+| Grid | Naive ms | Tiled ms | Tiled ÷ naive |
+|---|---|---|---|
+| 64³ | 0.009 | 0.019 | 0.49× |
+| 128³ | 0.157 | 0.200 | 0.79× |
+| 192³ | 0.582 | 0.740 | 0.79× |
+| 256³ | 1.399 | 1.807 | 0.77× |
+| 320³ | 2.758 | 3.528 | 0.78× |
+| 384³ | 4.801 | 6.717 | 0.71× |
+| 512³ | 11.463 | 15.992 | 0.72× |
+
+Mean ratio about 0.72× (0.59× at `4/8`). Tiled is slower at every size; naive timings
+match §3.1 within about 1% at the sizes where both were measured, and the 512³ ratio
+agrees with the sweep in §3.2 (0.716×). Single runs, no confidence intervals. **[V]**
+
 ### 3.2 Tile-parameter sweep (512³, 200 steps; naive ≈ 11.45–11.56 ms throughout)
 
 | Config | Regs | Tiled ms | Tiled ÷ naive |
