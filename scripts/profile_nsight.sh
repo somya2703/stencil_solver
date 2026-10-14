@@ -37,6 +37,9 @@ METRICS=(
     # DRAM traffic
     "dram__bytes_read.sum"
     "dram__bytes_write.sum"
+    # DRAM clock during the launch: dram__throughput % is normalised to it,
+    # so record it next to the percentage (see docs/CASE_STUDY.md 3.7)
+    "dram__cycles_elapsed.avg.per_second"
     # L1 hit rate
     "l1tex__t_bytes_pipe_lsu_mem_global_op_ld.sum"
     "l1tex__t_sector_hit_rate.pct"
