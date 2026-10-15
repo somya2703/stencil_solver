@@ -5,10 +5,39 @@ Nsight-driven optimisation for seismic and heat-diffusion workloads.
 
 Implements the acoustic wave equation and heat diffusion over a 3D grid
 using 8th-order finite differences, progressing from a naive global-memory
-kernel through shared-memory tiling and multi-GPU domain decomposition.
+kernel through shared-memory tiling. A multi-GPU domain-decomposed path
+is implemented but has not been run or validated (see `docs/CASE_STUDY.md` section 7).
 
 This is the exact computational pattern underlying seismic RTM/FWI,
 reservoir simulation, and power-grid transient solvers.
+
+## Key findings (RTX 4050 Laptop GPU, Ada SM 8.9, CUDA 12.8)
+
+The expected result for this project was "shared-memory tiling beats the naive kernel."
+On this GPU it does not, and the investigation explains why.
+
+| | Naive | Tiled (best config, TILE_Y=8, PENCIL_Z=12) |
+|---|---|---|
+| Time per step, 512^3 | about 11.5 ms | about 16.0 ms (0.72x of naive) |
+| Effective bandwidth (compulsory traffic / time) | about 178 GB/s | about 128 GB/s |
+| DRAM read per step | 1.59 GB | 1.98 GB |
+
+- **Naive is already at the DRAM limit.** Nsight Compute reports about 96% of peak DRAM
+  throughput, and its time is within roughly 2-5% of the traffic floor. Reducing
+  redundant reads cannot help much when L2 already absorbs them.
+- **The peak is independently checked.** A standalone read-only kernel reaches about
+  188 GB/s (98% of the derived 192 GB/s peak).
+- **Tiling moves more DRAM bytes, not fewer**, and spends 33-51% of warp cycles at
+  barriers (naive: 0%). Occupancy explains only part of the slowdown.
+- **Two kernel edits were tried and did not help:** replacing a redundant `p_cur`
+  reload was neutral, and prefetching `p_prev`/`vel2` before the barrier was about
+  5% slower. Two performance steps in the PENCIL_Z sweep remain unexplained.
+- **Limits:** one GPU only (the tiled design targeted A100-class parts and has not
+  been run on one); the multi-GPU path was never run.
+
+Details, evidence tags (verified / derived / inferred / unverified) and the full
+prediction ledger, including the predictions that failed, are in
+[docs/CASE_STUDY.md](docs/CASE_STUDY.md).
 
 ---
 
@@ -18,11 +47,12 @@ reservoir simulation, and power-grid transient solvers.
 |-----------|-------------|
 | `stencil_naive` | Baseline global-memory kernel — Nsight "before" target |
 | `stencil_tiled` | Shared-memory tiled kernel — Nsight "after" target |
-| `stencil_multigpu` | MPI + NCCL domain-decomposed multi-GPU solver |
+| `stencil_multigpu` | MPI + NCCL domain-decomposed solver (implemented, **not validated**) |
 | `bench_naive/tiled/scaling` | Benchmark executables with JSON output |
 | `scripts/profile_nsight.sh` | Nsight Compute + Systems wrapper with compare mode |
 | `scripts/plot_results.py` | Roofline, throughput, speedup, scaling charts |
-| `docs/BENCHMARKS.md` | Performance report (fill in after profiling) |
+| `docs/BENCHMARKS.md` | Naive-vs-tiled benchmark table and plots (RTX 4050 Laptop) |
+| `docs/CASE_STUDY.md` | Counter-backed investigation of why tiling loses on this GPU |
 | `docs/nsight_workflow.md` | Step-by-step Nsight profiling guide |
 
 ---
