@@ -261,6 +261,23 @@ line-row totals):
   the pencil refill. **[I]** Consistent with R12 (loads issued late); not tested by changing
   the kernel.
 
+**Kernel edits tried afterwards** (`TILE_Y=8, PENCIL_Z=12`, 512^3, 5 alternating pairs of
+`bench_tiled`, 200 steps, 20 warmup; baseline about 16.03 ms):
+
+| Edit | Registers | Gate (85 tests) | Tiled ms (mean) | Change |
+|---|---|---|---|---|
+| Use `pencil[R]` instead of reloading `p_cur[c]` (commit ea0662e) | 48 -> 48 | pass | 16.032 | -0.02% (noise) |
+| Prefetch `p_prev`/`vel2` before the first barrier (reverted) | 48 -> 48 | pass | 16.825 | +5.0% slower, all 5 pairs |
+
+- The reload removal is correct and neutral. **[V]**
+- Moving the `p_prev`/`vel2` loads ahead of the barrier did not help and cost about 5%, so
+  this form of prefetch does not recover the PZ 16->20 step or the tiled slowdown, which
+  weakens (but does not exclude) the late-load explanation: the edit also added a guarded
+  branch, so load placement was not isolated. **[V]** for the timings, **[I]** for the reading.
+  Why it is slower (extra guarded branch and live ranges for halo-only threads) is **[I]**;
+  the SASS was not inspected.
+- The PZ steps remain unexplained.
+
 The mechanism behind both steps remains unresolved.
 
 ### 3.7 Independent bandwidth test (`tests/perf/bench_stream.cu`)
