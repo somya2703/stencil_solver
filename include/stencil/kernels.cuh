@@ -17,12 +17,12 @@
 #include "stencil/types.hpp"
 
 #ifndef STENCIL_CPU_FALLBACK
-#  include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #else
 // In CPU-fallback mode, streams are not used — define a compatible type.
-#  ifndef __DRIVER_TYPES_H__
+#ifndef __DRIVER_TYPES_H__
 using cudaStream_t = void*;
-#  endif
+#endif
 #endif
 
 #include "stencil/config.hpp"
@@ -39,13 +39,8 @@ void upload_fd_coefficients();
  *
  * Profiling target: demonstrates memory-bandwidth bottleneck.
  */
-void launch_naive(
-    const real_t*    d_p_cur,
-    const real_t*    d_p_prev,
-    const real_t*    d_vel2,
-          real_t*    d_p_next,
-    const GridDims&  grid,
-    cudaStream_t     stream = nullptr);
+void launch_naive(const real_t* d_p_cur, const real_t* d_p_prev, const real_t* d_vel2,
+                  real_t* d_p_next, const GridDims& grid, cudaStream_t stream = nullptr);
 
 // ── Tiled kernel (shared-memory + register pencil) ───────────────────────────
 /**
@@ -56,14 +51,8 @@ void launch_naive(
  *
  * Profiling target: demonstrates bandwidth reduction and occupancy improvement.
  */
-void launch_tiled(
-    const real_t*    d_p_cur,
-    const real_t*    d_p_prev,
-    const real_t*    d_vel2,
-          real_t*    d_p_next,
-    const GridDims&  grid,
-    cudaStream_t     stream = nullptr);
-
+void launch_tiled(const real_t* d_p_cur, const real_t* d_p_prev, const real_t* d_vel2,
+                  real_t* d_p_next, const GridDims& grid, cudaStream_t stream = nullptr);
 
 // ── Multi-GPU slab kernel ─────────────────────────────────────────────────────
 /**
@@ -71,23 +60,14 @@ void launch_tiled(
  * Identical to launch_tiled() but semantically distinct: the Z-face halos
  * in dims are pre-filled by IHaloExchange before this call.
  */
-void launch_slab(
-    const real_t*    d_p_cur,
-    const real_t*    d_p_prev,
-    const real_t*    d_vel2,
-          real_t*    d_p_next,
-    const GridDims&  dims,
-    cudaStream_t     stream = nullptr);
+void launch_slab(const real_t* d_p_cur, const real_t* d_p_prev, const real_t* d_vel2,
+                 real_t* d_p_next, const GridDims& dims, cudaStream_t stream = nullptr);
 
 // ── Convenience: launch by variant ───────────────────────────────────────────
 
-inline void launch(KernelVariant variant,
-                   const real_t*   d_p_cur,
-                   const real_t*   d_p_prev,
-                   const real_t*   d_vel2,
-                         real_t*   d_p_next,
-                   const GridDims& grid,
-                   cudaStream_t    stream = nullptr) {
+inline void launch(KernelVariant variant, const real_t* d_p_cur, const real_t* d_p_prev,
+                   const real_t* d_vel2, real_t* d_p_next, const GridDims& grid,
+                   cudaStream_t stream = nullptr) {
     switch (variant) {
         case KernelVariant::Naive:
             launch_naive(d_p_cur, d_p_prev, d_vel2, d_p_next, grid, stream);

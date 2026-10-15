@@ -30,8 +30,6 @@
  */
 
 #include "stencil/io.hpp"
-#include "stencil/timer.hpp"
-#include "stencil/types.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -41,8 +39,11 @@
 #include <string>
 #include <vector>
 
+#include "stencil/timer.hpp"
+#include "stencil/types.hpp"
+
 #ifndef STENCIL_CPU_FALLBACK
-#  include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #endif
 
 namespace stencil {
@@ -74,44 +75,45 @@ static std::string escape_json(const std::string& s) {
     std::string out;
     out.reserve(s.size());
     for (char c : s) {
-        if (c == '"')  { out += "\\\""; }
-        else if (c == '\\') { out += "\\\\"; }
-        else           { out += c; }
+        if (c == '"') {
+            out += "\\\"";
+        } else if (c == '\\') {
+            out += "\\\\";
+        } else {
+            out += c;
+        }
     }
     return out;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
-void write_results_json(const std::string&            path,
-                        const std::vector<PerfResult>& results,
-                        int                            device,
-                        int                            steps,
-                        int                            warmup) {
-    if (path.empty()) return;
+void write_results_json(const std::string& path, const std::vector<PerfResult>& results, int device,
+                        int steps, int warmup) {
+    if (path.empty())
+        return;
 
     std::ostringstream js;
     js << "{\n";
-    js << "  \"gpu_name\": \""      << escape_json(query_gpu_name(device)) << "\",\n";
-    js << "  \"cuda_version\": \""  << escape_json(query_cuda_version())   << "\",\n";
-    js << "  \"stencil_radius\": "  << STENCIL_RADIUS                      << ",\n";
-    js << "  \"precision\": \""
-       << (sizeof(real_t) == 8 ? "fp64" : "fp32")                         << "\",\n";
-    js << "  \"tile_x\": "          << TILE_X                              << ",\n";
-    js << "  \"tile_y\": "          << TILE_Y                              << ",\n";
-    js << "  \"pencil_z\": "        << PENCIL_Z                            << ",\n";
-    js << "  \"steps\": "           << steps                               << ",\n";
-    js << "  \"warmup\": "          << warmup                              << ",\n";
+    js << "  \"gpu_name\": \"" << escape_json(query_gpu_name(device)) << "\",\n";
+    js << "  \"cuda_version\": \"" << escape_json(query_cuda_version()) << "\",\n";
+    js << "  \"stencil_radius\": " << STENCIL_RADIUS << ",\n";
+    js << "  \"precision\": \"" << (sizeof(real_t) == 8 ? "fp64" : "fp32") << "\",\n";
+    js << "  \"tile_x\": " << TILE_X << ",\n";
+    js << "  \"tile_y\": " << TILE_Y << ",\n";
+    js << "  \"pencil_z\": " << PENCIL_Z << ",\n";
+    js << "  \"steps\": " << steps << ",\n";
+    js << "  \"warmup\": " << warmup << ",\n";
     js << "  \"results\": [\n";
 
     for (std::size_t i = 0; i < results.size(); ++i) {
         const auto& r = results[i];
         js << "    {\n";
-        js << "      \"label\": \""        << escape_json(r.label) << "\",\n";
-        js << "      \"grid_size\": "      << r.grid_size           << ",\n";
-        js << "      \"time_ms\": "        << r.time_ms             << ",\n";
-        js << "      \"bandwidth_gbs\": "  << r.bandwidth_gbs       << ",\n";
+        js << "      \"label\": \"" << escape_json(r.label) << "\",\n";
+        js << "      \"grid_size\": " << r.grid_size << ",\n";
+        js << "      \"time_ms\": " << r.time_ms << ",\n";
+        js << "      \"bandwidth_gbs\": " << r.bandwidth_gbs << ",\n";
         js << "      \"model_bandwidth_gbs\": " << r.model_bandwidth_gbs << ",\n";
-        js << "      \"gflops\": "         << r.gflops              << "\n";
+        js << "      \"gflops\": " << r.gflops << "\n";
         js << "    }" << (i + 1 < results.size() ? "," : "") << "\n";
     }
 
@@ -130,9 +132,9 @@ void write_results_json(const std::string&            path,
  *
  * Schema extension adds "mode" (weak|strong), "ngpu", and "efficiency".
  */
-void write_scaling_json(const std::string&                   path,
-                        const std::vector<ScalingResult>&    results) {
-    if (path.empty()) return;
+void write_scaling_json(const std::string& path, const std::vector<ScalingResult>& results) {
+    if (path.empty())
+        return;
 
     std::ostringstream js;
     js << "{\n";
@@ -141,10 +143,10 @@ void write_scaling_json(const std::string&                   path,
     for (std::size_t i = 0; i < results.size(); ++i) {
         const auto& r = results[i];
         js << "    {\n";
-        js << "      \"mode\": \""     << escape_json(r.mode) << "\",\n";
-        js << "      \"ngpu\": "       << r.ngpu              << ",\n";
-        js << "      \"time_ms\": "    << r.time_ms           << ",\n";
-        js << "      \"efficiency\": " << r.efficiency        << "\n";
+        js << "      \"mode\": \"" << escape_json(r.mode) << "\",\n";
+        js << "      \"ngpu\": " << r.ngpu << ",\n";
+        js << "      \"time_ms\": " << r.time_ms << ",\n";
+        js << "      \"efficiency\": " << r.efficiency << "\n";
         js << "    }" << (i + 1 < results.size() ? "," : "") << "\n";
     }
 

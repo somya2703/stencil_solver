@@ -10,13 +10,13 @@
 
 #include "solver_base.hpp"
 
+#include <cstdio>
+#include <stdexcept>
+
 #include "stencil/grid.hpp"
 #include "stencil/io.hpp"
 #include "stencil/kernels.cuh"
 #include "stencil/types.hpp"
-
-#include <cstdio>
-#include <stdexcept>
 
 namespace stencil {
 
@@ -43,10 +43,8 @@ void SolverBase::init(const Config& cfg) {
     // finite-difference time derivative (p_cur - p_prev)/dt is zero —
     // i.e. a quiescent medium with a pressure disturbance, no initial velocity.
     HostGrid h_field(grid_->dims());
-    init_gaussian(h_field,
-                  cfg.pulse_cx, cfg.pulse_cy, cfg.pulse_cz,
-                  cfg.pulse_sigma);
-    grid_->upload_cur (h_field, stream_);
+    init_gaussian(h_field, cfg.pulse_cx, cfg.pulse_cy, cfg.pulse_cz, cfg.pulse_sigma);
+    grid_->upload_cur(h_field, stream_);
     grid_->upload_prev(h_field, stream_);
 
     // ── Velocity-squared field ────────────────────────────────────────────────
@@ -95,17 +93,17 @@ PerfResult SolverBase::run(int n_steps, int warmup) {
     // Roofline metrics
     const double bw_bytes    = compulsory_bytes_per_step(grid_->dims());
     const double model_bytes = bandwidth_bytes_per_step(grid_->dims());
-    const double flops    = flops_per_step(grid_->dims());
+    const double flops       = flops_per_step(grid_->dims());
 
     NVTX_POP();
 
     PerfResult r;
-    r.label         = name();
-    r.time_ms       = ms_per_step;
-    r.bandwidth_gbs = bw_bytes / (ms_per_step * 1e-3) / 1e9;
+    r.label               = name();
+    r.time_ms             = ms_per_step;
+    r.bandwidth_gbs       = bw_bytes / (ms_per_step * 1e-3) / 1e9;
     r.model_bandwidth_gbs = model_bytes / (ms_per_step * 1e-3) / 1e9;
-    r.gflops        = flops    / (ms_per_step * 1e-3) / 1e9;
-    r.grid_size     = grid_->dims().nx;
+    r.gflops              = flops / (ms_per_step * 1e-3) / 1e9;
+    r.grid_size           = grid_->dims().nx;
     return r;
 }
 

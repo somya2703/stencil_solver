@@ -20,23 +20,23 @@
 #include "stencil/types.hpp"
 
 #ifndef STENCIL_CPU_FALLBACK
-#  include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #endif
 
 #include <cstdio>
 #include <cstdlib>
-#include <vector>
 #include <stdexcept>
+#include <vector>
 
 static void print_device_banner(int device) {
 #ifndef STENCIL_CPU_FALLBACK
     cudaDeviceProp p{};
     if (cudaGetDeviceProperties(&p, device) == cudaSuccess) {
         std::printf("Device : %s\n", p.name);
-        std::printf("Memory : %.1f GB   Peak BW: %.1f GB/s\n",
-                    static_cast<double>(p.totalGlobalMem) / 1e9,
-                    2.0 /* DDR: two transfers per memory clock */ * static_cast<double>(p.memoryClockRate) * 1e3
-                    * static_cast<double>(p.memoryBusWidth) / 8.0 / 1e9);
+        std::printf(
+            "Memory : %.1f GB   Peak BW: %.1f GB/s\n", static_cast<double>(p.totalGlobalMem) / 1e9,
+            2.0 /* DDR: two transfers per memory clock */ * static_cast<double>(p.memoryClockRate) *
+                1e3 * static_cast<double>(p.memoryBusWidth) / 8.0 / 1e9);
     }
 #else
     (void)device;
@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
     cfg.variant = stencil::KernelVariant::Naive;
 
     print_device_banner(cfg.device);
-    std::printf("\nRadius : %d  (%d-th order)\n", STENCIL_RADIUS, 2*STENCIL_RADIUS);
+    std::printf("\nRadius : %d  (%d-th order)\n", STENCIL_RADIUS, 2 * STENCIL_RADIUS);
     std::printf("Steps  : %d  Warmup: %d\n\n", cfg.steps, cfg.warmup_steps);
 
     // Grid sizes to sweep. If user set a specific size, use only that.
@@ -65,10 +65,8 @@ int main(int argc, char** argv) {
         (cfg.nx != 256) ? std::vector<std::size_t>{cfg.nx}
                         : std::vector<std::size_t>{64, 128, 192, 256, 320, 384, 512};
 
-    std::printf("%-8s  %10s  %10s  %12s\n",
-                "Grid", "ms/step", "GB/s", "GFLOP/s");
-    std::printf("%-8s  %10s  %10s  %12s\n",
-                "--------", "----------", "----------", "------------");
+    std::printf("%-8s  %10s  %10s  %12s\n", "Grid", "ms/step", "GB/s", "GFLOP/s");
+    std::printf("%-8s  %10s  %10s  %12s\n", "--------", "----------", "----------", "------------");
 
     std::vector<stencil::PerfResult> results;
     results.reserve(sizes.size());
@@ -82,8 +80,8 @@ int main(int argc, char** argv) {
             auto r      = solver->run(run.steps, run.warmup_steps);
             r.label     = "naive";
 
-            std::printf("%-8zu  %8.3f ms  %8.1f     %10.1f\n",
-                        N, r.time_ms, r.bandwidth_gbs, r.gflops);
+            std::printf("%-8zu  %8.3f ms  %8.1f     %10.1f\n", N, r.time_ms, r.bandwidth_gbs,
+                        r.gflops);
             std::fflush(stdout);
             results.push_back(r);
         } catch (const std::exception& e) {

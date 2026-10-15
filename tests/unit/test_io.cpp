@@ -11,16 +11,15 @@
  * site that forgets them should fail to compile, not silently write 0).
  */
 
+#include <gtest/gtest.h>
+
 #include "stencil/io.hpp"
 #include "stencil/types.hpp"
-#include <gtest/gtest.h>
 using namespace stencil;
 #include <cstdio>
 #include <fstream>
 #include <sstream>
 #include <string>
-
-
 
 namespace {
 
@@ -45,7 +44,10 @@ protected:
 
 TEST_F(WriteResultsJsonTest, RecordsTileConfigFromCompileTimeMacros) {
     std::vector<PerfResult> results;
-    PerfResult r; r.label = "naive"; r.grid_size = 512; r.time_ms = 11.5;
+    PerfResult r;
+    r.label     = "naive";
+    r.grid_size = 512;
+    r.time_ms   = 11.5;
     results.push_back(r);
 
     write_results_json(path, results, /*device=*/0, /*steps=*/200, /*warmup=*/20);
@@ -60,7 +62,10 @@ TEST_F(WriteResultsJsonTest, RecordsTileConfigFromCompileTimeMacros) {
 
 TEST_F(WriteResultsJsonTest, RecordsStepsAndWarmupFromArguments) {
     std::vector<PerfResult> results;
-    PerfResult r; r.label = "tiled"; r.grid_size = 256; r.time_ms = 2.0;
+    PerfResult r;
+    r.label     = "tiled";
+    r.grid_size = 256;
+    r.time_ms   = 2.0;
     results.push_back(r);
 
     write_results_json(path, results, 0, 200, 20);
@@ -74,7 +79,10 @@ TEST_F(WriteResultsJsonTest, DifferentStepsWarmupProduceDifferentOutput) {
     // Guards against the fields being written but silently ignoring the
     // actual arguments (e.g. hardcoded instead of wired through).
     std::vector<PerfResult> results;
-    PerfResult r; r.label = "naive"; r.grid_size = 64; r.time_ms = 0.1;
+    PerfResult r;
+    r.label     = "naive";
+    r.grid_size = 64;
+    r.time_ms   = 0.1;
     results.push_back(r);
 
     write_results_json(path, results, 0, 50, 5);
@@ -92,7 +100,10 @@ TEST_F(WriteResultsJsonTest, DifferentStepsWarmupProduceDifferentOutput) {
 
 TEST_F(WriteResultsJsonTest, EmptyPathIsNoOp) {
     std::vector<PerfResult> results;
-    PerfResult r; r.label = "naive"; r.grid_size = 64; r.time_ms = 0.1;
+    PerfResult r;
+    r.label     = "naive";
+    r.grid_size = 64;
+    r.time_ms   = 0.1;
     results.push_back(r);
 
     // Must not throw and must not create a file at the (empty) path.
@@ -102,8 +113,12 @@ TEST_F(WriteResultsJsonTest, EmptyPathIsNoOp) {
 TEST_F(WriteResultsJsonTest, PerResultFieldsStillPresent) {
     // Pre-existing fields (checklist M2 only ADDS fields, must not drop any).
     std::vector<PerfResult> results;
-    PerfResult r; r.label = "tiled"; r.grid_size = 384; r.time_ms = 6.743;
-    r.bandwidth_gbs = 882.9; r.gflops = 441.4;
+    PerfResult r;
+    r.label         = "tiled";
+    r.grid_size     = 384;
+    r.time_ms       = 6.743;
+    r.bandwidth_gbs = 882.9;
+    r.gflops        = 441.4;
     results.push_back(r);
 
     write_results_json(path, results, 0, 200, 20);

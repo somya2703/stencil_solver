@@ -12,52 +12,50 @@
  *   5. Spatial symmetry preserved
  */
 
+#include <gtest/gtest.h>
+
 #include "stencil/config.hpp"
 #include "stencil/grid.hpp"
 #include "stencil/solver.hpp"
 #include "stencil/types.hpp"
-
-#include <gtest/gtest.h>
 using namespace stencil;
 #include <algorithm>
 #include <cmath>
 #include <numeric>
-
-
 
 class HeatSolver3DTest : public ::testing::Test {
 protected:
     static Config make_cfg(std::size_t N = 48) {
         Config cfg;
         cfg.nx = cfg.ny = cfg.nz = N;
-        cfg.steps        = 20;
-        cfg.warmup_steps = 0;
-        cfg.physics      = Physics::HeatDiffusion;
-        cfg.variant      = KernelVariant::Naive;
-        cfg.diffusivity  = 1.0e-3f;
-        cfg.velocity     = 500.0f;   // used only for dt = CFL * dx / v
-        cfg.dx = cfg.dy  = cfg.dz = 1.0f;
+        cfg.steps                = 20;
+        cfg.warmup_steps         = 0;
+        cfg.physics              = Physics::HeatDiffusion;
+        cfg.variant              = KernelVariant::Naive;
+        cfg.diffusivity          = 1.0e-3f;
+        cfg.velocity             = 500.0f;  // used only for dt = CFL * dx / v
+        cfg.dx = cfg.dy = cfg.dz = 1.0f;
         cfg.pulse_cx = cfg.pulse_cy = cfg.pulse_cz = 0.5f;
-        cfg.pulse_sigma = 5.0f;
-        cfg.verbose      = false;
+        cfg.pulse_sigma                            = 5.0f;
+        cfg.verbose                                = false;
         return cfg;
     }
 
     static double total_heat(const HostGrid& g) {
         double s = 0.0;
-        for (auto v : g.data) s += static_cast<double>(v);
+        for (auto v : g.data)
+            s += static_cast<double>(v);
         return s;
     }
 
     static double peak_value(const HostGrid& g) {
-        return static_cast<double>(
-            *std::max_element(g.data.begin(), g.data.end()));
+        return static_cast<double>(*std::max_element(g.data.begin(), g.data.end()));
     }
 };
 
 // ── 1. Peak decreases monotonically ──────────────────────────────────────────
 TEST_F(HeatSolver3DTest, PeakDecreaseMonotonically) {
-    Config cfg = make_cfg();
+    Config cfg  = make_cfg();
     auto solver = make_solver(cfg);
 
     HostGrid f(solver->dims());
@@ -69,8 +67,7 @@ TEST_F(HeatSolver3DTest, PeakDecreaseMonotonically) {
         solver->download(f);
         const double curr_peak = peak_value(f);
         EXPECT_LE(curr_peak, prev_peak + 1e-5)
-            << "Peak increased at step " << i
-            << ": " << prev_peak << " -> " << curr_peak;
+            << "Peak increased at step " << i << ": " << prev_peak << " -> " << curr_peak;
         prev_peak = curr_peak;
     }
 }
@@ -81,7 +78,7 @@ TEST_F(HeatSolver3DTest, PeakDecreaseMonotonically) {
 // domain — not spontaneously gain energy.
 // We check the sum never *increases* (no energy creation).
 TEST_F(HeatSolver3DTest, TotalHeatNeverIncreases) {
-    Config cfg = make_cfg();
+    Config cfg  = make_cfg();
     auto solver = make_solver(cfg);
 
     HostGrid f(solver->dims());
@@ -92,8 +89,7 @@ TEST_F(HeatSolver3DTest, TotalHeatNeverIncreases) {
         solver->step();
         solver->download(f);
         const double curr_sum = total_heat(f);
-        EXPECT_LE(curr_sum, prev_sum + 1e-3)
-            << "Total heat increased at step " << i;
+        EXPECT_LE(curr_sum, prev_sum + 1e-3) << "Total heat increased at step " << i;
         prev_sum = curr_sum;
     }
 }
@@ -101,8 +97,8 @@ TEST_F(HeatSolver3DTest, TotalHeatNeverIncreases) {
 // ── 3. Solution stays non-negative ───────────────────────────────────────────
 // A Gaussian IC with α > 0 should never produce negative temperatures.
 TEST_F(HeatSolver3DTest, SolutionNonNegative) {
-    Config cfg = make_cfg();
-    cfg.steps = 30;
+    Config cfg  = make_cfg();
+    cfg.steps   = 30;
     auto solver = make_solver(cfg);
     solver->run(cfg.steps);
 
@@ -110,14 +106,13 @@ TEST_F(HeatSolver3DTest, SolutionNonNegative) {
     solver->download(f);
 
     const auto& d = solver->dims();
-    const int R = STENCIL_RADIUS;
+    const int R   = STENCIL_RADIUS;
     for (std::size_t iz = R; iz < d.nz - R; ++iz)
-    for (std::size_t iy = R; iy < d.ny - R; ++iy)
-    for (std::size_t ix = R; ix < d.nx - R; ++ix) {
-        EXPECT_GE(static_cast<double>(f.at(ix, iy, iz)), -1e-6)
-            << "Negative temperature at ("
-            << ix << "," << iy << "," << iz << ")";
-    }
+        for (std::size_t iy = R; iy < d.ny - R; ++iy)
+            for (std::size_t ix = R; ix < d.nx - R; ++ix) {
+                EXPECT_GE(static_cast<double>(f.at(ix, iy, iz)), -1e-6)
+                    << "Negative temperature at (" << ix << "," << iy << "," << iz << ")";
+            }
 }
 
 // ── 4. Gaussian width grows as σ²(t) = σ²(0) + 2α·t ─────────────────────────
@@ -125,13 +120,13 @@ TEST_F(HeatSolver3DTest, SolutionNonNegative) {
 // Gaussian with σ²(t) = σ²(0) + 2αt.
 // We estimate σ² numerically and compare to the analytical prediction.
 TEST_F(HeatSolver3DTest, GaussianWidthGrowsAnalytically) {
-    Config cfg = make_cfg(64);
+    Config cfg      = make_cfg(64);
     cfg.steps       = 40;
     cfg.diffusivity = 1.0e-2f;
     cfg.pulse_sigma = 6.0f;
-    auto solver = make_solver(cfg);
+    auto solver     = make_solver(cfg);
 
-    const GridDims& d = solver->dims();
+    const GridDims& d  = solver->dims();
     const real_t alpha = cfg.diffusivity;
     const real_t dt    = d.dt;
 
@@ -143,13 +138,14 @@ TEST_F(HeatSolver3DTest, GaussianWidthGrowsAnalytically) {
         double total = 0.0, weighted = 0.0;
         const double cx = d.nx * 0.5, cy = d.ny * 0.5, cz = d.nz * 0.5;
         for (std::size_t iz = 0; iz < d.nz; ++iz)
-        for (std::size_t iy = 0; iy < d.ny; ++iy)
-        for (std::size_t ix = 0; ix < d.nx; ++ix) {
-            const double v = static_cast<double>(g.at(ix, iy, iz));
-            const double r2 = (ix-cx)*(ix-cx) + (iy-cy)*(iy-cy) + (iz-cz)*(iz-cz);
-            total    += v;
-            weighted += v * r2;
-        }
+            for (std::size_t iy = 0; iy < d.ny; ++iy)
+                for (std::size_t ix = 0; ix < d.nx; ++ix) {
+                    const double v = static_cast<double>(g.at(ix, iy, iz));
+                    const double r2 =
+                        (ix - cx) * (ix - cx) + (iy - cy) * (iy - cy) + (iz - cz) * (iz - cz);
+                    total += v;
+                    weighted += v * r2;
+                }
         return (total > 1e-12) ? weighted / total : 0.0;
     };
 
@@ -166,29 +162,28 @@ TEST_F(HeatSolver3DTest, GaussianWidthGrowsAnalytically) {
 
     // Allow 20% error (finite-domain effects, discrete approximation)
     EXPECT_NEAR(sigma2_t, expected, expected * 0.20)
-        << "Gaussian spread mismatch: measured=" << sigma2_t
-        << " expected=" << expected;
+        << "Gaussian spread mismatch: measured=" << sigma2_t << " expected=" << expected;
 }
 
 // ── 5. Spatial symmetry preserved ────────────────────────────────────────────
 TEST_F(HeatSolver3DTest, SymmetryPreserved) {
-    Config cfg = make_cfg(48);
-    cfg.steps = 10;
+    Config cfg  = make_cfg(48);
+    cfg.steps   = 10;
     auto solver = make_solver(cfg);
     solver->run(cfg.steps);
 
     HostGrid f(solver->dims());
     solver->download(f);
     const auto& d = solver->dims();
-    const int R = STENCIL_RADIUS;
+    const int R   = STENCIL_RADIUS;
 
     double max_asym = 0.0;
     for (std::size_t iz = R; iz < d.nz - R; ++iz)
-    for (std::size_t iy = R; iy < d.ny - R; ++iy)
-    for (std::size_t ix = R; ix < d.nx / 2; ++ix) {
-        max_asym = std::max(max_asym, std::abs(
-            static_cast<double>(f.at(ix, iy, iz)) -
-            static_cast<double>(f.at(d.nx - 1 - ix, iy, iz))));
-    }
+        for (std::size_t iy = R; iy < d.ny - R; ++iy)
+            for (std::size_t ix = R; ix < d.nx / 2; ++ix) {
+                max_asym =
+                    std::max(max_asym, std::abs(static_cast<double>(f.at(ix, iy, iz)) -
+                                                static_cast<double>(f.at(d.nx - 1 - ix, iy, iz))));
+            }
     EXPECT_LT(max_asym, 1e-5) << "Symmetry broken: " << max_asym;
 }

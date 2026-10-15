@@ -24,7 +24,7 @@
 #include "stencil/types.hpp"
 
 #ifndef STENCIL_CPU_FALLBACK
-#  include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #endif
 
 #include <memory>
@@ -36,16 +36,17 @@ class SolverBase : public ISolver {
 public:
     ~SolverBase() override {
 #ifndef STENCIL_CPU_FALLBACK
-        if (stream_) cudaStreamDestroy(stream_);
+        if (stream_)
+            cudaStreamDestroy(stream_);
 #endif
     }
 
     // ISolver interface
-    void       init(const Config& cfg)     override;
-    void       step()                      override { step_impl(); }
+    void init(const Config& cfg) override;
+    void step() override { step_impl(); }
     PerfResult run(int n_steps, int warmup = 0) override;
-    void       download(HostGrid& out) const override;
-    const GridDims& dims() const           override { return grid_->dims(); }
+    void download(HostGrid& out) const override;
+    const GridDims& dims() const override { return grid_->dims(); }
 
 protected:
     SolverBase() = default;
@@ -54,13 +55,13 @@ protected:
     virtual void step_impl() = 0;
 
     // State accessible to subclasses
-    Config                    cfg_;
+    Config cfg_;
     std::unique_ptr<DeviceGrid> grid_;
 
 #ifndef STENCIL_CPU_FALLBACK
     cudaStream_t stream_ = nullptr;
 #else
-    void*        stream_ = nullptr;   // unused in CPU path, kept for uniform code
+    void* stream_ = nullptr;  // unused in CPU path, kept for uniform code
 #endif
 };
 

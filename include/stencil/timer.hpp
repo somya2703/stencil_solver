@@ -12,14 +12,12 @@
  * print_perf / print_speedup — formatted console output.
  */
 
-#include "stencil/types.hpp"
-
 #include <chrono>
 #include <cstdio>
 #include <string>
 #include <vector>
 
-
+#include "stencil/types.hpp"
 
 namespace stencil {
 
@@ -27,7 +25,7 @@ namespace stencil {
 class CpuTimer {
 public:
     void start() noexcept { t0_ = clock_t::now(); }
-    void stop()  noexcept { t1_ = clock_t::now(); }
+    void stop() noexcept { t1_ = clock_t::now(); }
 
     /// Elapsed milliseconds between last start() and stop().
     double elapsed_ms() const noexcept {
@@ -57,12 +55,8 @@ public:
     GpuTimer(const GpuTimer&)            = delete;
     GpuTimer& operator=(const GpuTimer&) = delete;
 
-    void start(cudaStream_t s = nullptr) {
-        CUDA_CHECK(cudaEventRecord(start_, s));
-    }
-    void stop(cudaStream_t s = nullptr) {
-        CUDA_CHECK(cudaEventRecord(stop_, s));
-    }
+    void start(cudaStream_t s = nullptr) { CUDA_CHECK(cudaEventRecord(start_, s)); }
+    void stop(cudaStream_t s = nullptr) { CUDA_CHECK(cudaEventRecord(stop_, s)); }
     /// Blocks until the stop event completes, then returns elapsed ms.
     float elapsed_ms() {
         float ms = 0.0f;
@@ -80,9 +74,10 @@ private:
 
 class GpuTimer {
 public:
-    void  start(void* = nullptr) noexcept { t_.start(); }
-    void  stop(void*  = nullptr) noexcept { t_.stop(); }
+    void start(void* = nullptr) noexcept { t_.start(); }
+    void stop(void* = nullptr) noexcept { t_.stop(); }
     float elapsed_ms() noexcept { return static_cast<float>(t_.elapsed_ms()); }
+
 private:
     CpuTimer t_;
 };
@@ -92,28 +87,28 @@ private:
 // ── Performance result ────────────────────────────────────────────────────────
 struct PerfResult {
     std::string label;
-    double      time_ms      = 0.0;  ///< mean wall time per step [ms]
-    double      bandwidth_gbs = 0.0; ///< effective bandwidth [GB/s]
-    double      gflops        = 0.0; ///< compute throughput [GFLOP/s]
-    double      model_bandwidth_gbs = 0.0; ///< no-reuse model traffic / time [GB/s]; tracks L2, not DRAM
-    std::size_t grid_size     = 0;   ///< N where grid is N×N×N (for reporting)
+    double time_ms       = 0.0;  ///< mean wall time per step [ms]
+    double bandwidth_gbs = 0.0;  ///< effective bandwidth [GB/s]
+    double gflops        = 0.0;  ///< compute throughput [GFLOP/s]
+    double model_bandwidth_gbs =
+        0.0;                    ///< no-reuse model traffic / time [GB/s]; tracks L2, not DRAM
+    std::size_t grid_size = 0;  ///< N where grid is N×N×N (for reporting)
 };
 
 // ── Console output ────────────────────────────────────────────────────────────
 inline void print_perf(const PerfResult& r) {
-    std::printf("  %-24s  %8.3f ms/step  %7.1f GB/s  %7.1f GFLOP/s\n",
-                r.label.c_str(), r.time_ms, r.bandwidth_gbs, r.gflops);
+    std::printf("  %-24s  %8.3f ms/step  %7.1f GB/s  %7.1f GFLOP/s\n", r.label.c_str(), r.time_ms,
+                r.bandwidth_gbs, r.gflops);
 }
 
 inline void print_speedup(const PerfResult& base, const PerfResult& opt) {
-    if (base.time_ms <= 0.0) return;
-    std::printf("\n  Speedup  (%s → %s) : %.2f×\n",
-                base.label.c_str(), opt.label.c_str(),
+    if (base.time_ms <= 0.0)
+        return;
+    std::printf("\n  Speedup  (%s → %s) : %.2f×\n", base.label.c_str(), opt.label.c_str(),
                 base.time_ms / opt.time_ms);
     std::printf("  Bandwidth gain          : %+.1f%%\n",
                 (opt.bandwidth_gbs / base.bandwidth_gbs - 1.0) * 100.0);
 }
-
 
 // ── Multi-result table (implemented in src/utils/timer.cpp) ──────────────────
 // One row per result, labelled by grid size. Each PerfResult is its own

@@ -27,7 +27,7 @@
 #include "stencil/types.hpp"
 
 #ifndef STENCIL_CPU_FALLBACK
-#  include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #endif
 
 #include <cstdio>
@@ -40,8 +40,9 @@ static double peak_bandwidth_gbs(int device) {
 #ifndef STENCIL_CPU_FALLBACK
     cudaDeviceProp p{};
     if (cudaGetDeviceProperties(&p, device) == cudaSuccess) {
-        return 2.0 /* DDR: two transfers per memory clock */ * static_cast<double>(p.memoryClockRate) * 1e3
-             * static_cast<double>(p.memoryBusWidth) / 8.0 / 1e9;
+        return 2.0 /* DDR: two transfers per memory clock */ *
+               static_cast<double>(p.memoryClockRate) * 1e3 *
+               static_cast<double>(p.memoryBusWidth) / 8.0 / 1e9;
     }
 #else
     (void)device;
@@ -66,17 +67,14 @@ int main(int argc, char** argv) {
     const double peak_bw = peak_bandwidth_gbs(cfg.device);
     std::printf("Peak BW   : %.1f GB/s\n", peak_bw);
     std::printf("Kernel    : tiled\n");
-    std::printf("Radius    : %d  (%d-th order)\n\n",
-                STENCIL_RADIUS, 2 * STENCIL_RADIUS);
+    std::printf("Radius    : %d  (%d-th order)\n\n", STENCIL_RADIUS, 2 * STENCIL_RADIUS);
 
     const std::vector<std::size_t> sizes =
         (cfg.nx != 256) ? std::vector<std::size_t>{cfg.nx}
                         : std::vector<std::size_t>{64, 96, 128, 192, 256, 384, 512};
 
-    std::printf("%-8s  %10s  %10s  %10s\n",
-                "Grid", "ms/step", "GB/s", "BW Eff.");
-    std::printf("%-8s  %10s  %10s  %10s\n",
-                "--------", "----------", "----------", "----------");
+    std::printf("%-8s  %10s  %10s  %10s\n", "Grid", "ms/step", "GB/s", "BW Eff.");
+    std::printf("%-8s  %10s  %10s  %10s\n", "--------", "----------", "----------", "----------");
 
     std::vector<stencil::ScalingResult> scaling_results;
 
@@ -86,11 +84,11 @@ int main(int argc, char** argv) {
 
         try {
             auto solver = stencil::make_solver(run);
-            auto r = solver->run(run.steps, run.warmup_steps);
+            auto r      = solver->run(run.steps, run.warmup_steps);
 
             const double efficiency = r.bandwidth_gbs / peak_bw;
-            std::printf("%-8zu  %8.3f ms  %8.1f     %8.1f%%\n",
-                        N, r.time_ms, r.bandwidth_gbs, efficiency * 100.0);
+            std::printf("%-8zu  %8.3f ms  %8.1f     %8.1f%%\n", N, r.time_ms, r.bandwidth_gbs,
+                        efficiency * 100.0);
             std::fflush(stdout);
 
             stencil::ScalingResult sr;

@@ -80,28 +80,21 @@ void upload_fd_coefficients_tiled() {
     FDCoeffs<STENCIL_RADIUS> fd;
     real_t h[STENCIL_RADIUS + 1];
     h[0] = fd.c0;
-    for (int r = 0; r < STENCIL_RADIUS; ++r) h[r + 1] = fd.c[r];
+    for (int r = 0; r < STENCIL_RADIUS; ++r)
+        h[r + 1] = fd.c[r];
     CUDA_CHECK(cudaMemcpyToSymbol(c_fd, h, sizeof(real_t) * (STENCIL_RADIUS + 1)));
 }
 // ── Tile dimensions ───────────────────────────────────────────────────────────
 // SMEM_X/Y: full block width/height including R-cell halo on each side.
 // The block is exactly SMEM_X × SMEM_Y threads — one thread per SMEM cell.
-constexpr int SMEM_X = TILE_X + 2 * STENCIL_RADIUS;   // 40  (R=4)
-constexpr int SMEM_Y = TILE_Y + 2 * STENCIL_RADIUS;   // 16  (R=4)
+constexpr int SMEM_X = TILE_X + 2 * STENCIL_RADIUS;  // 40  (R=4)
+constexpr int SMEM_Y = TILE_Y + 2 * STENCIL_RADIUS;  // 16  (R=4)
 
 // ── Tiled kernel ──────────────────────────────────────────────────────────────
-__global__ __launch_bounds__(SMEM_X * SMEM_Y)
-void kernel_tiled(
-    const real_t* __restrict__ p_cur,
-    const real_t* __restrict__ p_prev,
-    const real_t* __restrict__ vel2,
-          real_t* __restrict__ p_next,
-    GridDims grid,
-    real_t   inv_dx2,
-    real_t   inv_dy2,
-    real_t   inv_dz2,
-    real_t   dt2)
-{
+__global__ __launch_bounds__(SMEM_X* SMEM_Y) void kernel_tiled(
+    const real_t* __restrict__ p_cur, const real_t* __restrict__ p_prev,
+    const real_t* __restrict__ vel2, real_t* __restrict__ p_next, GridDims grid, real_t inv_dx2,
+    real_t inv_dy2, real_t inv_dz2, real_t dt2) {
     // ── Thread indices ────────────────────────────────────────────────────────
     // tx ∈ [0, SMEM_X)  ty ∈ [0, SMEM_Y)
     // Each thread owns one cell in the SMEM tile, including halo cells.
@@ -150,9 +143,8 @@ void kernel_tiled(
     for (int d = 0; d < PENCIL_Z + 2 * R; ++d) {
         const int iz = iz0 - R + d;
         if (xy_valid && iz >= 0 && iz < NZ)
-            pencil[d] = p_cur[static_cast<std::ptrdiff_t>(iz) * sz
-                             + static_cast<std::ptrdiff_t>(giy) * sy
-                             + gix];
+            pencil[d] = p_cur[static_cast<std::ptrdiff_t>(iz) * sz +
+                              static_cast<std::ptrdiff_t>(giy) * sy + gix];
     }
 
     // ── Main Z loop ───────────────────────────────────────────────────────────
@@ -170,29 +162,26 @@ void kernel_tiled(
         //   tx ∈ [R, SMEM_X-R)  →  writes to SMEM position without out-of-bounds
         //   ty ∈ [R, SMEM_Y-R)
         //   global index within domain interior
-        const bool interior =
-            (tx >= R && tx < SMEM_X - R) &&
-            (ty >= R && ty < SMEM_Y - R) &&
-            (gix >= R && gix < NX - R)   &&
-            (giy >= R && giy < NY - R)   &&
-            (iz  >= R && iz  < NZ - R);
+        const bool interior = (tx >= R && tx < SMEM_X - R) && (ty >= R && ty < SMEM_Y - R) &&
+                              (gix >= R && gix < NX - R) && (giy >= R && giy < NY - R) &&
+                              (iz >= R && iz < NZ - R);
 
         if (interior) {
-            const std::size_t c = static_cast<std::size_t>(iz)  * sz
-                                + static_cast<std::size_t>(giy) * sy
-                                + static_cast<std::size_t>(gix);
+            const std::size_t c = static_cast<std::size_t>(iz) * sz +
+                                  static_cast<std::size_t>(giy) * sy +
+                                  static_cast<std::size_t>(gix);
 
             // X Laplacian — reads from smem[ty][tx ± r]
             // All in the same SMEM row → no bank conflicts.
             real_t lap_x = c_fd[0] * smem[ty][tx] * inv_dx2;
-            #pragma unroll
+#pragma unroll
             for (int r = 1; r <= R; ++r)
                 lap_x += c_fd[r] * (smem[ty][tx + r] + smem[ty][tx - r]) * inv_dx2;
 
             // Y Laplacian — reads from smem[ty ± r][tx]
             // Loaded once into SMEM per tile, reused SMEM_X times per row.
             real_t lap_y = c_fd[0] * smem[ty][tx] * inv_dy2;
-            #pragma unroll
+#pragma unroll
             for (int r = 1; r <= R; ++r)
                 lap_y += c_fd[r] * (smem[ty + r][tx] + smem[ty - r][tx]) * inv_dy2;
 
@@ -200,49 +189,38 @@ void kernel_tiled(
             // pencil[R+r] = plane iz+r, pencil[R-r] = plane iz-r.
             // Pure register arithmetic — zero DRAM, zero SMEM.
             real_t lap_z = c_fd[0] * pencil[R] * inv_dz2;
-            #pragma unroll
+#pragma unroll
             for (int r = 1; r <= R; ++r)
                 lap_z += c_fd[r] * (pencil[R + r] + pencil[R - r]) * inv_dz2;
 
             // Leapfrog time integration
             // pencil[R] holds p_cur at (gix, giy, iz) == p_cur[c]; no global reload.
-            p_next[c] = real_t{2} * pencil[R]
-                      - p_prev[c]
-                      + dt2 * vel2[c] * (lap_x + lap_y + lap_z);
+            p_next[c] = real_t{2} * pencil[R] - p_prev[c] + dt2 * vel2[c] * (lap_x + lap_y + lap_z);
         }
 
         __syncthreads();  // protect SMEM before next iteration's load
 
-        // Shift pencil: pencil[k] ← pencil[k+1].
-        // Pure register-to-register move — zero memory traffic.
-        #pragma unroll
+// Shift pencil: pencil[k] ← pencil[k+1].
+// Pure register-to-register move — zero memory traffic.
+#pragma unroll
         for (int d = 0; d < PENCIL_Z + 2 * R - 1; ++d)
             pencil[d] = pencil[d + 1];
 
         // Refill look-ahead: load plane iz + R + 1 (next iteration's look-ahead)
         {
-            const int iz_ahead = iz + R + 1;
-            pencil[PENCIL_Z + 2 * R - 1] =
-                (xy_valid && iz_ahead >= 0 && iz_ahead < NZ)
-                ? p_cur[static_cast<std::ptrdiff_t>(iz_ahead) * sz
-                       + static_cast<std::ptrdiff_t>(giy) * sy
-                       + gix]
-                : real_t{0};
+            const int iz_ahead           = iz + R + 1;
+            pencil[PENCIL_Z + 2 * R - 1] = (xy_valid && iz_ahead >= 0 && iz_ahead < NZ)
+                                               ? p_cur[static_cast<std::ptrdiff_t>(iz_ahead) * sz +
+                                                       static_cast<std::ptrdiff_t>(giy) * sy + gix]
+                                               : real_t{0};
         }
     }
 }
 
 // ── Host launcher ─────────────────────────────────────────────────────────────
-void launch_tiled(
-    const real_t*   d_p_cur,
-    const real_t*   d_p_prev,
-    const real_t*   d_vel2,
-          real_t*   d_p_next,
-    const GridDims& grid,
-    cudaStream_t    stream)
-{
+void launch_tiled(const real_t* d_p_cur, const real_t* d_p_prev, const real_t* d_vel2,
+                  real_t* d_p_next, const GridDims& grid, cudaStream_t stream) {
     NVTX_RANGE("launch_tiled");
-    
 
     const real_t inv_dx2 = real_t{1} / (grid.dx * grid.dx);
     const real_t inv_dy2 = real_t{1} / (grid.dy * grid.dy);
@@ -252,16 +230,14 @@ void launch_tiled(
     // Block: SMEM_X × SMEM_Y × 1  (one thread per SMEM cell, including halos)
     // Grid:  tiles in X/Y, pencil-slabs in Z
     const dim3 block(SMEM_X, SMEM_Y, 1);
-    const dim3 grid3d(
-        (static_cast<unsigned>(grid.nx) + TILE_X - 1) / TILE_X,
-        (static_cast<unsigned>(grid.ny) + TILE_Y - 1) / TILE_Y,
-        (static_cast<unsigned>(grid.nz) + PENCIL_Z - 1) / PENCIL_Z);
+    const dim3 grid3d((static_cast<unsigned>(grid.nx) + TILE_X - 1) / TILE_X,
+                      (static_cast<unsigned>(grid.ny) + TILE_Y - 1) / TILE_Y,
+                      (static_cast<unsigned>(grid.nz) + PENCIL_Z - 1) / PENCIL_Z);
 
     // SMEM: one XY tile (already statically allocated in kernel, but pass
     // smem_bytes=0 since the shared array is declared statically in the kernel)
-    kernel_tiled<<<grid3d, block, 0, stream>>>(
-        d_p_cur, d_p_prev, d_vel2, d_p_next,
-        grid, inv_dx2, inv_dy2, inv_dz2, dt2);
+    kernel_tiled<<<grid3d, block, 0, stream>>>(d_p_cur, d_p_prev, d_vel2, d_p_next, grid, inv_dx2,
+                                               inv_dy2, inv_dz2, dt2);
 
     CUDA_CHECK_LAST();
 }

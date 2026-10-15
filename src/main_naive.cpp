@@ -30,7 +30,7 @@
 #include "stencil/types.hpp"
 
 #ifndef STENCIL_CPU_FALLBACK
-#  include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #endif
 
 #include <cstdio>
@@ -44,13 +44,12 @@ static void print_device_info(int device) {
     cudaDeviceProp prop{};
     if (cudaGetDeviceProperties(&prop, device) == cudaSuccess) {
         std::printf("GPU [%d]: %s\n", device, prop.name);
-        std::printf("  Compute: %d.%d   SMs: %d   Memory: %.1f GB\n",
-                    prop.major, prop.minor,
-                    prop.multiProcessorCount,
-                    static_cast<double>(prop.totalGlobalMem) / 1e9);
+        std::printf("  Compute: %d.%d   SMs: %d   Memory: %.1f GB\n", prop.major, prop.minor,
+                    prop.multiProcessorCount, static_cast<double>(prop.totalGlobalMem) / 1e9);
         std::printf("  Peak bandwidth: %.1f GB/s\n",
-                    2.0 /* DDR: two transfers per memory clock */ * static_cast<double>(prop.memoryClockRate) * 1e3
-                    * static_cast<double>(prop.memoryBusWidth) / 8.0 / 1e9);
+                    2.0 /* DDR: two transfers per memory clock */ *
+                        static_cast<double>(prop.memoryClockRate) * 1e3 *
+                        static_cast<double>(prop.memoryBusWidth) / 8.0 / 1e9);
     }
 #else
     (void)device;
@@ -67,7 +66,8 @@ int main(int argc, char** argv) {
     try {
         cfg = stencil::parse_args(argc, argv);
     } catch (const std::exception& e) {
-        std::fprintf(stderr, "Error: %s\n\nUsage: %s [--nx N] [--ny N] [--nz N] "
+        std::fprintf(stderr,
+                     "Error: %s\n\nUsage: %s [--nx N] [--ny N] [--nz N] "
                      "[--steps N] [--warmup N] [--physics wave|heat] "
                      "[--velocity F] [--device N] [--output path] [--verbose]\n",
                      e.what(), argv[0]);
@@ -86,9 +86,9 @@ int main(int argc, char** argv) {
     std::vector<std::size_t> grid_sizes;
     if (cfg.nx != 256 || cfg.ny != 256 || cfg.nz != 256) {
         // User explicitly set a grid — honour it exactly
-        grid_sizes = { cfg.nx };
+        grid_sizes = {cfg.nx};
     } else {
-        grid_sizes = { 128, 256, 512 };
+        grid_sizes = {128, 256, 512};
     }
 
     std::vector<stencil::PerfResult> results;
@@ -98,8 +98,8 @@ int main(int argc, char** argv) {
         stencil::Config run_cfg = cfg;
         run_cfg.nx = run_cfg.ny = run_cfg.nz = N;
 
-        std::printf("Grid: %zu³   steps: %d   warmup: %d\n",
-                    N, run_cfg.steps, run_cfg.warmup_steps);
+        std::printf("Grid: %zu³   steps: %d   warmup: %d\n", N, run_cfg.steps,
+                    run_cfg.warmup_steps);
 
         try {
             auto solver = stencil::make_solver(run_cfg);

@@ -14,6 +14,7 @@ if ! command -v "$CLANG_FORMAT" &>/dev/null; then
 fi
 
 FILES=$(find "$ROOT/src" "$ROOT/include" "$ROOT/tests" \
+    ! -name "bench_stream.cu" \
     \( -name "*.cpp" -o -name "*.cu" -o -name "*.hpp" -o -name "*.cuh" \) \
     | sort)
 

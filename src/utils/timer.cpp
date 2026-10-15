@@ -34,21 +34,16 @@ namespace stencil {
  * @param results  vector of PerfResult, ordered as they should appear
  */
 void format_perf_table(const std::vector<PerfResult>& results) {
-    if (results.empty()) return;
+    if (results.empty())
+        return;
 
-    std::printf("\n%-26s  %8s  %10s  %10s  %12s\n",
-                "Kernel", "Grid", "ms/step", "GB/s", "GFLOP/s");
-    std::printf("%-26s  %8s  %10s  %10s  %12s\n",
-                std::string(26, '-').c_str(),
-                "--------", "----------", "----------", "------------");
+    std::printf("\n%-26s  %8s  %10s  %10s  %12s\n", "Kernel", "Grid", "ms/step", "GB/s", "GFLOP/s");
+    std::printf("%-26s  %8s  %10s  %10s  %12s\n", std::string(26, '-').c_str(), "--------",
+                "----------", "----------", "------------");
 
     for (const auto& r : results) {
-        std::printf("  %-24s  %6zu³  %8.3f ms  %8.1f     %10.1f\n",
-                    r.label.c_str(),
-                    r.grid_size,
-                    r.time_ms,
-                    r.bandwidth_gbs,
-                    r.gflops);
+        std::printf("  %-24s  %6zu³  %8.3f ms  %8.1f     %10.1f\n", r.label.c_str(), r.grid_size,
+                    r.time_ms, r.bandwidth_gbs, r.gflops);
     }
     std::printf("\n");
 }

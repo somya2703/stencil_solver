@@ -35,7 +35,7 @@
 #include "stencil/types.hpp"
 
 #ifndef STENCIL_CPU_FALLBACK
-#  include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #endif
 
 #include <memory>
@@ -59,20 +59,16 @@ public:
      * @param dims      GridDims of the local slab (including halos).
      * @param stream    CUDA stream for GPU-direct ops (ignored by MPI impl).
      */
-    virtual void exchange(
-        real_t*         d_field,
-        const GridDims& dims,
-        cudaStream_t    stream = nullptr) = 0;
+    virtual void exchange(real_t* d_field, const GridDims& dims, cudaStream_t stream = nullptr) = 0;
 
     /// Human-readable transport name ("nccl", "mpi").
     virtual std::string name() const = 0;
 
-    int rank()   const noexcept { return rank_; }
+    int rank() const noexcept { return rank_; }
     int nranks() const noexcept { return nranks_; }
 
 protected:
-    IHaloExchange(int rank, int nranks)
-        : rank_(rank), nranks_(nranks) {}
+    IHaloExchange(int rank, int nranks) : rank_(rank), nranks_(nranks) {}
 
     int rank_   = 0;
     int nranks_ = 1;
@@ -90,10 +86,7 @@ protected:
  * @param rank    MPI rank of this process (0 if MPI disabled)
  * @param nranks  Total number of MPI ranks (1 if MPI disabled)
  */
-std::unique_ptr<IHaloExchange> make_halo_exchange(
-    int rank,
-    int nranks,
-    const Config& cfg);
+std::unique_ptr<IHaloExchange> make_halo_exchange(int rank, int nranks, const Config& cfg);
 
 // ── Slab decomposition helpers ────────────────────────────────────────────────
 /**
@@ -111,9 +104,8 @@ inline std::size_t local_nz(std::size_t nz_global, int rank, int nranks) {
  * Adds STENCIL_RADIUS halo cells on each Z face.
  */
 inline GridDims local_dims(const GridDims& global, int rank, int nranks) {
-    GridDims d      = global;
-    d.nz            = local_nz(global.nz, rank, nranks)
-                    + 2 * static_cast<std::size_t>(STENCIL_RADIUS);
+    GridDims d = global;
+    d.nz       = local_nz(global.nz, rank, nranks) + 2 * static_cast<std::size_t>(STENCIL_RADIUS);
     return d;
 }
 

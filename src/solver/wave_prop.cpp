@@ -23,11 +23,12 @@
  *   Config::make_grid() enforces this automatically.
  */
 
-#include "solver_base.hpp"
+#include <memory>
+#include <string>
+
 #include "stencil/kernels.cuh"
 
-#include <string>
-#include <memory>
+#include "solver_base.hpp"
 
 namespace stencil {
 
@@ -38,10 +39,14 @@ public:
 
     std::string name() const override {
         switch (cfg_.variant) {
-            case KernelVariant::Naive:    return "wave/naive";
-            case KernelVariant::Tiled:    return "wave/tiled";
-            case KernelVariant::MultiGPU: return "wave/multigpu";
-            default:                       return "wave/unknown";
+            case KernelVariant::Naive:
+                return "wave/naive";
+            case KernelVariant::Tiled:
+                return "wave/tiled";
+            case KernelVariant::MultiGPU:
+                return "wave/multigpu";
+            default:
+                return "wave/unknown";
         }
     }
 
@@ -65,8 +70,7 @@ protected:
                grid_->prev(),  // p at time t-dt
                grid_->vel2(),  // v²(x)
                grid_->next(),  // output: p at time t+dt
-               grid_->dims(),
-               stream_);
+               grid_->dims(), stream_);
         grid_->rotate();
     }
 };

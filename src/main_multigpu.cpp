@@ -33,11 +33,11 @@
 #include "stencil/types.hpp"
 
 #ifndef STENCIL_CPU_FALLBACK
-#  include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #endif
 
 #ifdef ENABLE_MPI
-#  include <mpi.h>
+#include <mpi.h>
 #endif
 
 #include <algorithm>
@@ -48,8 +48,8 @@
 #include <vector>
 
 // ── MPI helpers ───────────────────────────────────────────────────────────────
-static int  g_rank   = 0;
-static int  g_nranks = 1;
+static int g_rank   = 0;
+static int g_nranks = 1;
 
 static void mpi_init(int& argc, char**& argv) {
 #ifdef ENABLE_MPI
@@ -57,7 +57,8 @@ static void mpi_init(int& argc, char**& argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &g_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &g_nranks);
 #else
-    (void)argc; (void)argv;
+    (void)argc;
+    (void)argv;
 #endif
 }
 
@@ -94,8 +95,7 @@ static double mpi_allreduce_sum(double v) {
  * Returns the wall time per step in milliseconds (measured at this rank).
  * Rank 0 aggregates across all ranks to report the max (critical path).
  */
-static double run_rank(const stencil::Config& cfg,
-                        stencil::IHaloExchange* comm) {
+static double run_rank(const stencil::Config& cfg, stencil::IHaloExchange* comm) {
     using namespace stencil;
 
     // ── Build local slab dims ─────────────────────────────────────────────
@@ -121,10 +121,8 @@ static double run_rank(const stencil::Config& cfg,
 
     // Initial conditions: Gaussian pulse (same as single-GPU solver)
     HostGrid h_field(local);
-    init_gaussian(h_field,
-                  cfg.pulse_cx, cfg.pulse_cy, cfg.pulse_cz,
-                  cfg.pulse_sigma);
-    grid.upload_cur (h_field, stream);
+    init_gaussian(h_field, cfg.pulse_cx, cfg.pulse_cy, cfg.pulse_cz, cfg.pulse_sigma);
+    grid.upload_cur(h_field, stream);
     grid.upload_prev(h_field, stream);
 
     HostGrid h_vel(local);
@@ -137,8 +135,7 @@ static double run_rank(const stencil::Config& cfg,
 
     // ── Warmup ────────────────────────────────────────────────────────────
     for (int i = 0; i < cfg.warmup_steps; ++i) {
-        launch_slab(grid.cur(), grid.prev(), grid.vel2(), grid.next(),
-                    local, stream);
+        launch_slab(grid.cur(), grid.prev(), grid.vel2(), grid.next(), local, stream);
         grid.rotate();
         if (g_nranks > 1)
             comm->exchange(grid.cur(), local, stream);
@@ -154,8 +151,7 @@ static double run_rank(const stencil::Config& cfg,
     for (int step = 0; step < cfg.steps; ++step) {
         NVTX_RANGE("step");
 
-        launch_slab(grid.cur(), grid.prev(), grid.vel2(), grid.next(),
-                    local, stream);
+        launch_slab(grid.cur(), grid.prev(), grid.vel2(), grid.next(), local, stream);
         grid.rotate();
 
         if (g_nranks > 1) {
@@ -179,8 +175,8 @@ int main(int argc, char** argv) {
     mpi_init(argc, argv);
 
     if (g_rank == 0)
-        std::printf("=== stencil-solver: multi-GPU (%d rank%s) ===\n\n",
-                    g_nranks, g_nranks > 1 ? "s" : "");
+        std::printf("=== stencil-solver: multi-GPU (%d rank%s) ===\n\n", g_nranks,
+                    g_nranks > 1 ? "s" : "");
 
     stencil::Config cfg;
     try {
@@ -188,11 +184,11 @@ int main(int argc, char** argv) {
     } catch (const std::exception& e) {
         if (g_rank == 0)
             std::fprintf(stderr,
-                "Error: %s\n\n"
-                "Usage: mpirun -n N ./stencil_multigpu "
-                "[--nx N] [--ny N] [--nz N] [--steps N] "
-                "[--warmup N] [--velocity F] [--output path.json]\n",
-                e.what());
+                         "Error: %s\n\n"
+                         "Usage: mpirun -n N ./stencil_multigpu "
+                         "[--nx N] [--ny N] [--nz N] [--steps N] "
+                         "[--warmup N] [--velocity F] [--output path.json]\n",
+                         e.what());
         mpi_finalize();
         return EXIT_FAILURE;
     }
@@ -204,10 +200,9 @@ int main(int argc, char** argv) {
         const stencil::GridDims global = cfg.make_grid();
         std::printf("Global grid : %zu × %zu × %zu\n", cfg.nx, cfg.ny, cfg.nz);
         std::printf("Ranks       : %d\n", g_nranks);
-        std::printf("Local NZ    : %zu + %d halos/side\n",
-                    stencil::local_nz(cfg.nz, 0, g_nranks), STENCIL_RADIUS);
-        std::printf("Steps       : %d  Warmup: %d\n\n",
-                    cfg.steps, cfg.warmup_steps);
+        std::printf("Local NZ    : %zu + %d halos/side\n", stencil::local_nz(cfg.nz, 0, g_nranks),
+                    STENCIL_RADIUS);
+        std::printf("Steps       : %d  Warmup: %d\n\n", cfg.steps, cfg.warmup_steps);
         (void)global;
     }
 
@@ -242,23 +237,22 @@ int main(int argc, char** argv) {
     if (g_rank == 0) {
         // Effective bandwidth: all ranks together process the full global grid
         const stencil::GridDims global = cfg.make_grid();
-        const double bw_bytes = stencil::bandwidth_bytes_per_step(global);
-        const double bw_gbs   = bw_bytes / (ms_max * 1e-3) / 1e9;
-        const double gflops   = stencil::flops_per_step(global)
-                              / (ms_max * 1e-3) / 1e9;
+        const double bw_bytes          = stencil::bandwidth_bytes_per_step(global);
+        const double bw_gbs            = bw_bytes / (ms_max * 1e-3) / 1e9;
+        const double gflops            = stencil::flops_per_step(global) / (ms_max * 1e-3) / 1e9;
 
         std::printf("Results (%d GPU%s):\n", g_nranks, g_nranks > 1 ? "s" : "");
-        std::printf("  Max ms/step  : %.3f ms\n",  ms_max);
-        std::printf("  Mean ms/step : %.3f ms\n",  ms_sum / g_nranks);
+        std::printf("  Max ms/step  : %.3f ms\n", ms_max);
+        std::printf("  Mean ms/step : %.3f ms\n", ms_sum / g_nranks);
         std::printf("  Eff. BW      : %.1f GB/s\n", bw_gbs);
-        std::printf("  GFLOP/s      : %.1f\n",      gflops);
+        std::printf("  GFLOP/s      : %.1f\n", gflops);
 
         // Write scaling JSON for run_scaling.sh + plot_results.py
         if (!cfg.output_path.empty()) {
             stencil::ScalingResult sr;
-            sr.mode       = "multigpu";
-            sr.ngpu       = g_nranks;
-            sr.time_ms    = ms_max;
+            sr.mode    = "multigpu";
+            sr.ngpu    = g_nranks;
+            sr.time_ms = ms_max;
             // Efficiency = time_1gpu / (N * time_Ngpu), approximated here as
             // BW_achieved / (N * BW_single).  Caller scripts compute this properly.
             sr.efficiency = 1.0 / static_cast<double>(g_nranks);

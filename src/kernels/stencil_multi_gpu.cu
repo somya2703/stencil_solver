@@ -57,14 +57,8 @@ namespace stencil {
  * @param dims       Local slab GridDims (nx, ny, nz_local + 2R)
  * @param stream     CUDA stream
  */
-void launch_slab(
-    const real_t*   d_p_cur,
-    const real_t*   d_p_prev,
-    const real_t*   d_vel2,
-          real_t*   d_p_next,
-    const GridDims& dims,
-    cudaStream_t    stream)
-{
+void launch_slab(const real_t* d_p_cur, const real_t* d_p_prev, const real_t* d_vel2,
+                 real_t* d_p_next, const GridDims& dims, cudaStream_t stream) {
     NVTX_RANGE("launch_slab");
     // Reuse the tiled kernel — it already handles interior-only computation
     // and treats the Z-face halos as read-only boundary data.
@@ -76,10 +70,8 @@ void launch_slab(
 #else  // CPU fallback
 
 namespace stencil {
-void launch_slab(
-    const real_t* p_cur, const real_t* p_prev, const real_t* vel2,
-          real_t* p_next, const GridDims& dims, cudaStream_t stream)
-{
+void launch_slab(const real_t* p_cur, const real_t* p_prev, const real_t* vel2, real_t* p_next,
+                 const GridDims& dims, cudaStream_t stream) {
     launch_tiled(p_cur, p_prev, vel2, p_next, dims, stream);
 }
 }  // namespace stencil

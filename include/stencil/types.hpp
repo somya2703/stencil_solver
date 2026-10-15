@@ -19,13 +19,13 @@
 
 // ── Compiler portability ──────────────────────────────────────────────────────
 #ifdef __CUDACC__
-#  define STENCIL_HD __host__ __device__
-#  define STENCIL_D  __device__
-#  define STENCIL_FI __forceinline__
+#define STENCIL_HD __host__ __device__
+#define STENCIL_D __device__
+#define STENCIL_FI __forceinline__
 #else
-#  define STENCIL_HD
-#  define STENCIL_D
-#  define STENCIL_FI inline
+#define STENCIL_HD
+#define STENCIL_D
+#define STENCIL_FI inline
 #endif
 
 // ── Floating-point precision ──────────────────────────────────────────────────
@@ -40,55 +40,64 @@ using real_t = float;
 // STENCIL_RADIUS = half-order per axis.
 //   1 → 2nd-order,  2 → 4th,  3 → 6th,  4 → 8th  (default)
 #ifndef STENCIL_RADIUS
-#  define STENCIL_RADIUS 4
+#define STENCIL_RADIUS 4
 #endif
 
 // Shared-memory tile dimensions (tiled kernel).
 // TILE_X must equal the warp size (32) for coalesced loads.
 #ifndef TILE_X
-#  define TILE_X 32
+#define TILE_X 32
 #endif
 #ifndef TILE_Y
-#  define TILE_Y 8
+#define TILE_Y 8
 #endif
 // Z-pencil depth kept in registers (not shared memory).
 #ifndef PENCIL_Z
-#  define PENCIL_Z 12
+#define PENCIL_Z 12
 #endif
 
 // ── CUDA error-checking macros ────────────────────────────────────────────────
 // In CPU-fallback mode these are compiled out.
 #ifndef STENCIL_CPU_FALLBACK
-#  include <cuda_runtime.h>
+#include <cuda_runtime.h>
 
-#  define CUDA_CHECK(call)                                               \
-     do {                                                                \
-       cudaError_t _e = (call);                                          \
-       if (_e != cudaSuccess) {                                          \
-         fprintf(stderr, "[CUDA ERROR] %s:%d  %s\n",                    \
-                 __FILE__, __LINE__, cudaGetErrorString(_e));            \
-         std::exit(EXIT_FAILURE);                                        \
-       }                                                                 \
-     } while (0)
+#define CUDA_CHECK(call)                                                    \
+    do {                                                                    \
+        cudaError_t _e = (call);                                            \
+        if (_e != cudaSuccess) {                                            \
+            fprintf(stderr, "[CUDA ERROR] %s:%d  %s\n", __FILE__, __LINE__, \
+                    cudaGetErrorString(_e));                                \
+            std::exit(EXIT_FAILURE);                                        \
+        }                                                                   \
+    } while (0)
 
-#  define CUDA_CHECK_LAST() CUDA_CHECK(cudaGetLastError())
+#define CUDA_CHECK_LAST() CUDA_CHECK(cudaGetLastError())
 
 #else
 // CPU-fallback stubs — nothing to check
-#  define CUDA_CHECK(call)    (call)
-#  define CUDA_CHECK_LAST()   do {} while (0)
+#define CUDA_CHECK(call) (call)
+#define CUDA_CHECK_LAST() \
+    do {                  \
+    } while (0)
 #endif  // STENCIL_CPU_FALLBACK
 
 // ── NVTX range markers ────────────────────────────────────────────────────────
 #ifdef ENABLE_NVTX
-#  include <nvtx3/nvtx3.hpp>
-#  define NVTX_RANGE(name)  nvtx3::scoped_range _nvtx_rng_ ## __LINE__ {name}
-#  define NVTX_PUSH(name)   nvtxRangePushA(name)
-#  define NVTX_POP()        nvtxRangePop()
+#include <nvtx3/nvtx3.hpp>
+#define NVTX_RANGE(name) \
+    nvtx3::scoped_range _nvtx_rng_##__LINE__ { name }
+#define NVTX_PUSH(name) nvtxRangePushA(name)
+#define NVTX_POP() nvtxRangePop()
 #else
-#  define NVTX_RANGE(name)  do {} while (0)
-#  define NVTX_PUSH(name)   do {} while (0)
-#  define NVTX_POP()        do {} while (0)
+#define NVTX_RANGE(name) \
+    do {                 \
+    } while (0)
+#define NVTX_PUSH(name) \
+    do {                \
+    } while (0)
+#define NVTX_POP() \
+    do {           \
+    } while (0)
 #endif
 
 // ── Grid descriptor ───────────────────────────────────────────────────────────
@@ -107,10 +116,10 @@ struct GridDims {
     std::size_t nx = 0;  ///< total cells in X (interior + 2*R halos)
     std::size_t ny = 0;  ///< total cells in Y
     std::size_t nz = 0;  ///< total cells in Z
-    real_t      dx = 1;  ///< grid spacing in X  [m]
-    real_t      dy = 1;  ///< grid spacing in Y  [m]
-    real_t      dz = 1;  ///< grid spacing in Z  [m]
-    real_t      dt = 1;  ///< time step           [s]
+    real_t dx      = 1;  ///< grid spacing in X  [m]
+    real_t dy      = 1;  ///< grid spacing in Y  [m]
+    real_t dz      = 1;  ///< grid spacing in Z  [m]
+    real_t dt      = 1;  ///< time step           [s]
 
     STENCIL_HD std::size_t size() const noexcept { return nx * ny * nz; }
 
@@ -150,29 +159,25 @@ struct FDCoeffs<1> {
 
 template <>
 struct FDCoeffs<2> {
-    static constexpr real_t c[2] = {
-        static_cast<real_t>(4.0 / 3.0),
-        static_cast<real_t>(-1.0 / 12.0)};
-    static constexpr real_t c0 = static_cast<real_t>(-5.0 / 2.0);
+    static constexpr real_t c[2] = {static_cast<real_t>(4.0 / 3.0),
+                                    static_cast<real_t>(-1.0 / 12.0)};
+    static constexpr real_t c0   = static_cast<real_t>(-5.0 / 2.0);
 };
 
 template <>
 struct FDCoeffs<3> {
-    static constexpr real_t c[3] = {
-        static_cast<real_t>(3.0 / 2.0),
-        static_cast<real_t>(-3.0 / 20.0),
-        static_cast<real_t>(1.0 / 90.0)};
-    static constexpr real_t c0 = static_cast<real_t>(-49.0 / 18.0);
+    static constexpr real_t c[3] = {static_cast<real_t>(3.0 / 2.0),
+                                    static_cast<real_t>(-3.0 / 20.0),
+                                    static_cast<real_t>(1.0 / 90.0)};
+    static constexpr real_t c0   = static_cast<real_t>(-49.0 / 18.0);
 };
 
 template <>
 struct FDCoeffs<4> {
-    static constexpr real_t c[4] = {
-        static_cast<real_t>(8.0 / 5.0),
-        static_cast<real_t>(-1.0 / 5.0),
-        static_cast<real_t>(8.0 / 315.0),
-        static_cast<real_t>(-1.0 / 560.0)};
-    static constexpr real_t c0 = static_cast<real_t>(-205.0 / 72.0);
+    static constexpr real_t c[4] = {static_cast<real_t>(8.0 / 5.0), static_cast<real_t>(-1.0 / 5.0),
+                                    static_cast<real_t>(8.0 / 315.0),
+                                    static_cast<real_t>(-1.0 / 560.0)};
+    static constexpr real_t c0   = static_cast<real_t>(-205.0 / 72.0);
 };
 
 // ── Roofline / bandwidth helpers ──────────────────────────────────────────────
@@ -191,7 +196,7 @@ struct FDCoeffs<4> {
  * See compulsory_bytes_per_step() for the DRAM-oriented figure.)
  */
 inline double bandwidth_bytes_per_step(const GridDims& g) {
-    const int    R = STENCIL_RADIUS;
+    const int R    = STENCIL_RADIUS;
     const double N = static_cast<double>(g.interior_size());
     return N * static_cast<double>(6 * R + 4) * sizeof(real_t);
 }
@@ -216,7 +221,7 @@ inline double compulsory_bytes_per_step(const GridDims& g) {
  * Time integration (2*p_cur - p_prev + dt2*vel2*lap):  5 flops
  */
 inline double flops_per_step(const GridDims& g) {
-    const int    R = STENCIL_RADIUS;
+    const int R    = STENCIL_RADIUS;
     const double N = static_cast<double>(g.interior_size());
     return N * static_cast<double>(3 * (4 * R + 1) + 5);
 }

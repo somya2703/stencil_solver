@@ -41,12 +41,13 @@
  *   added in a future optimisation step.
  */
 
-#include "solver_base.hpp"
-#include "stencil/kernels.cuh"
-
 #include <cmath>
 #include <memory>
 #include <string>
+
+#include "stencil/kernels.cuh"
+
+#include "solver_base.hpp"
 
 namespace stencil {
 
@@ -57,10 +58,14 @@ public:
 
     std::string name() const override {
         switch (cfg_.variant) {
-            case KernelVariant::Naive:    return "heat/naive";
-            case KernelVariant::Tiled:    return "heat/tiled";
-            case KernelVariant::MultiGPU: return "heat/multigpu";
-            default:                       return "heat/unknown";
+            case KernelVariant::Naive:
+                return "heat/naive";
+            case KernelVariant::Tiled:
+                return "heat/tiled";
+            case KernelVariant::MultiGPU:
+                return "heat/multigpu";
+            default:
+                return "heat/unknown";
         }
     }
 
@@ -72,15 +77,14 @@ public:
         // Re-upload vel2 as diffusivity α (not v²).
         // SolverBase::init() already set vel2 = v² — we overwrite here.
         HostGrid h_diff(grid_->dims());
-        std::fill(h_diff.data.begin(), h_diff.data.end(),
-                  static_cast<real_t>(cfg.diffusivity));
+        std::fill(h_diff.data.begin(), h_diff.data.end(), static_cast<real_t>(cfg.diffusivity));
         grid_->upload_vel2(h_diff, stream_);
 
         // Modify the grid's dt so that dt_eff² == dt_physical.
         // After this, the wave kernel computes:
         //   T + dt_eff² · α · ∇²T = T + dt · α · ∇²T  ✓
-        heat_dims_       = grid_->dims();
-        heat_dims_.dt    = std::sqrt(static_cast<double>(cfg_.make_grid().dt));
+        heat_dims_    = grid_->dims();
+        heat_dims_.dt = std::sqrt(static_cast<double>(cfg_.make_grid().dt));
 
 #ifndef STENCIL_CPU_FALLBACK
         CUDA_CHECK(cudaStreamSynchronize(stream_));
@@ -97,12 +101,8 @@ protected:
      * p_prev == p_cur is enforced below each step to keep the formula valid.
      */
     void step_impl() override {
-        launch(cfg_.variant,
-               grid_->cur(),
-               grid_->prev(),
-               grid_->vel2(),
-               grid_->next(),
-               heat_dims_,     // adjusted dt
+        launch(cfg_.variant, grid_->cur(), grid_->prev(), grid_->vel2(), grid_->next(),
+               heat_dims_,  // adjusted dt
                stream_);
         grid_->rotate();
 
@@ -113,19 +113,16 @@ protected:
         // (cur and prev now refer to the new time level and the slot we
         // just wrote into respectively, thanks to the ring rotation.)
 #ifndef STENCIL_CPU_FALLBACK
-        CUDA_CHECK(cudaMemcpyAsync(
-            grid_->prev(), grid_->cur(),
-            grid_->dims().size() * sizeof(real_t),
-            cudaMemcpyDeviceToDevice, stream_));
+        CUDA_CHECK(cudaMemcpyAsync(grid_->prev(), grid_->cur(),
+                                   grid_->dims().size() * sizeof(real_t), cudaMemcpyDeviceToDevice,
+                                   stream_));
 #else
-        std::copy(grid_->cur(),
-                  grid_->cur() + grid_->dims().size(),
-                  grid_->prev());
+        std::copy(grid_->cur(), grid_->cur() + grid_->dims().size(), grid_->prev());
 #endif
     }
 
 private:
-    GridDims heat_dims_{};   // dims with dt_eff = sqrt(dt_physical)
+    GridDims heat_dims_{};  // dims with dt_eff = sqrt(dt_physical)
 };
 
 // ── Factory ───────────────────────────────────────────────────────────────────

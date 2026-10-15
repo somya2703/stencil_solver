@@ -27,7 +27,7 @@
 #include "stencil/types.hpp"
 
 #ifndef STENCIL_CPU_FALLBACK
-#  include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #endif
 
 #include <cstdio>
@@ -41,15 +41,16 @@ static void print_device_info(int device) {
     cudaDeviceProp prop{};
     if (cudaGetDeviceProperties(&prop, device) == cudaSuccess) {
         std::printf("GPU [%d]: %s\n", device, prop.name);
-        std::printf("  Compute : %d.%d    SMs: %d\n",
-                    prop.major, prop.minor, prop.multiProcessorCount);
+        std::printf("  Compute : %d.%d    SMs: %d\n", prop.major, prop.minor,
+                    prop.multiProcessorCount);
         std::printf("  Memory  : %.1f GB   Peak BW: %.1f GB/s\n",
                     static_cast<double>(prop.totalGlobalMem) / 1e9,
-                    2.0 /* DDR: two transfers per memory clock */ * static_cast<double>(prop.memoryClockRate) * 1e3
-                    * static_cast<double>(prop.memoryBusWidth) / 8.0 / 1e9);
-        std::printf("  SMEM/block (tiled): %d B\n",
-                    (TILE_X + 2*STENCIL_RADIUS) *
-                    (TILE_Y + 2*STENCIL_RADIUS) * static_cast<int>(sizeof(real_t)));
+                    2.0 /* DDR: two transfers per memory clock */ *
+                        static_cast<double>(prop.memoryClockRate) * 1e3 *
+                        static_cast<double>(prop.memoryBusWidth) / 8.0 / 1e9);
+        std::printf("  SMEM/block (tiled): %d B\n", (TILE_X + 2 * STENCIL_RADIUS) *
+                                                        (TILE_Y + 2 * STENCIL_RADIUS) *
+                                                        static_cast<int>(sizeof(real_t)));
     }
 #else
     (void)device;
@@ -60,9 +61,11 @@ static void print_device_info(int device) {
 // Derive naive output path from tiled path:
 // "results/tiled.json" → "results/tiled_naive.json"
 static std::string naive_json_path(const std::string& tiled_path) {
-    if (tiled_path.empty()) return {};
+    if (tiled_path.empty())
+        return {};
     const auto dot = tiled_path.rfind('.');
-    if (dot == std::string::npos) return tiled_path + "_naive";
+    if (dot == std::string::npos)
+        return tiled_path + "_naive";
     return tiled_path.substr(0, dot) + "_naive" + tiled_path.substr(dot);
 }
 
@@ -74,32 +77,29 @@ int main(int argc, char** argv) {
         cfg = stencil::parse_args(argc, argv);
     } catch (const std::exception& e) {
         std::fprintf(stderr,
-            "Error: %s\n\n"
-            "Usage: %s [--nx N] [--ny N] [--nz N] [--steps N] [--warmup N]\n"
-            "          [--physics wave|heat] [--velocity F] [--device N]\n"
-            "          [--output path.json] [--verbose]\n",
-            e.what(), argv[0]);
+                     "Error: %s\n\n"
+                     "Usage: %s [--nx N] [--ny N] [--nz N] [--steps N] [--warmup N]\n"
+                     "          [--physics wave|heat] [--velocity F] [--device N]\n"
+                     "          [--output path.json] [--verbose]\n",
+                     e.what(), argv[0]);
         return EXIT_FAILURE;
     }
 
     print_device_info(cfg.device);
-    std::printf("\nStencil radius : %d  (%d-th order)\n",
-                STENCIL_RADIUS, 2 * STENCIL_RADIUS);
-    std::printf("Tile dims      : %d × %d  (SMEM block: %d × %d)\n",
-                TILE_X, TILE_Y,
-                TILE_X + 2*STENCIL_RADIUS, TILE_Y + 2*STENCIL_RADIUS);
+    std::printf("\nStencil radius : %d  (%d-th order)\n", STENCIL_RADIUS, 2 * STENCIL_RADIUS);
+    std::printf("Tile dims      : %d × %d  (SMEM block: %d × %d)\n", TILE_X, TILE_Y,
+                TILE_X + 2 * STENCIL_RADIUS, TILE_Y + 2 * STENCIL_RADIUS);
     std::printf("Z pencil depth : %d\n\n", PENCIL_Z);
 
     // Grid-size sweep: if user sets explicit nx, run that one size only.
     // Otherwise run 128³, 256³, 512³ for the report table.
-    const std::vector<std::size_t> sizes =
-        (cfg.nx != 256) ? std::vector<std::size_t>{cfg.nx}
-                        : std::vector<std::size_t>{128, 256, 512};
+    const std::vector<std::size_t> sizes = (cfg.nx != 256)
+                                               ? std::vector<std::size_t>{cfg.nx}
+                                               : std::vector<std::size_t>{128, 256, 512};
 
-    std::printf("%-8s  %10s  %10s  %10s  %10s  %8s\n",
-                "Grid", "Naive ms", "BW (GB/s)", "Tiled ms", "BW (GB/s)", "Speedup");
-    std::printf("%-8s  %10s  %10s  %10s  %10s  %8s\n",
-                "--------", "----------", "----------",
+    std::printf("%-8s  %10s  %10s  %10s  %10s  %8s\n", "Grid", "Naive ms", "BW (GB/s)", "Tiled ms",
+                "BW (GB/s)", "Speedup");
+    std::printf("%-8s  %10s  %10s  %10s  %10s  %8s\n", "--------", "----------", "----------",
                 "----------", "----------", "--------");
 
     std::vector<stencil::PerfResult> naive_results, tiled_results;
@@ -112,9 +112,9 @@ int main(int argc, char** argv) {
 
         // ── Naive ──────────────────────────────────────────────────────────────
         try {
-            run.variant = stencil::KernelVariant::Naive;
-            auto solver = stencil::make_solver(run);
-            r_naive = solver->run(run.steps, run.warmup_steps);
+            run.variant   = stencil::KernelVariant::Naive;
+            auto solver   = stencil::make_solver(run);
+            r_naive       = solver->run(run.steps, run.warmup_steps);
             r_naive.label = "naive";
             naive_results.push_back(r_naive);
         } catch (const std::exception& e) {
@@ -124,9 +124,9 @@ int main(int argc, char** argv) {
 
         // ── Tiled ──────────────────────────────────────────────────────────────
         try {
-            run.variant = stencil::KernelVariant::Tiled;
-            auto solver = stencil::make_solver(run);
-            r_tiled = solver->run(run.steps, run.warmup_steps);
+            run.variant   = stencil::KernelVariant::Tiled;
+            auto solver   = stencil::make_solver(run);
+            r_tiled       = solver->run(run.steps, run.warmup_steps);
             r_tiled.label = "tiled";
             tiled_results.push_back(r_tiled);
         } catch (const std::exception& e) {
@@ -134,14 +134,10 @@ int main(int argc, char** argv) {
             continue;
         }
 
-        const double speedup = (r_tiled.time_ms > 0.0)
-                             ? r_naive.time_ms / r_tiled.time_ms : 0.0;
+        const double speedup = (r_tiled.time_ms > 0.0) ? r_naive.time_ms / r_tiled.time_ms : 0.0;
 
-        std::printf("%-8zu  %8.3f ms  %8.1f     %8.3f ms  %8.1f     %6.2f×\n",
-                    N,
-                    r_naive.time_ms, r_naive.bandwidth_gbs,
-                    r_tiled.time_ms, r_tiled.bandwidth_gbs,
-                    speedup);
+        std::printf("%-8zu  %8.3f ms  %8.1f     %8.3f ms  %8.1f     %6.2f×\n", N, r_naive.time_ms,
+                    r_naive.bandwidth_gbs, r_tiled.time_ms, r_tiled.bandwidth_gbs, speedup);
         std::fflush(stdout);
     }
 
@@ -156,8 +152,10 @@ int main(int argc, char** argv) {
     // ── JSON output ────────────────────────────────────────────────────────────
     // Tiled results → cfg.output_path
     // Naive results → derived _naive path (for plot_results.py --naive flag)
-    stencil::write_results_json(cfg.output_path,              tiled_results, cfg.device, cfg.steps, cfg.warmup_steps);
-    stencil::write_results_json(naive_json_path(cfg.output_path), naive_results, cfg.device, cfg.steps, cfg.warmup_steps);
+    stencil::write_results_json(cfg.output_path, tiled_results, cfg.device, cfg.steps,
+                                cfg.warmup_steps);
+    stencil::write_results_json(naive_json_path(cfg.output_path), naive_results, cfg.device,
+                                cfg.steps, cfg.warmup_steps);
 
     return EXIT_SUCCESS;
 }

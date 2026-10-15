@@ -21,7 +21,7 @@
 #include "stencil/types.hpp"
 
 #ifndef STENCIL_CPU_FALLBACK
-#  include <cuda_runtime.h>
+#include <cuda_runtime.h>
 #endif
 
 #include <cstdio>
@@ -35,10 +35,10 @@ static void print_device_banner(int device) {
     cudaDeviceProp p{};
     if (cudaGetDeviceProperties(&p, device) == cudaSuccess) {
         std::printf("Device : %s\n", p.name);
-        std::printf("Memory : %.1f GB   Peak BW: %.1f GB/s\n",
-                    static_cast<double>(p.totalGlobalMem) / 1e9,
-                    2.0 /* DDR: two transfers per memory clock */ * static_cast<double>(p.memoryClockRate) * 1e3
-                    * static_cast<double>(p.memoryBusWidth) / 8.0 / 1e9);
+        std::printf(
+            "Memory : %.1f GB   Peak BW: %.1f GB/s\n", static_cast<double>(p.totalGlobalMem) / 1e9,
+            2.0 /* DDR: two transfers per memory clock */ * static_cast<double>(p.memoryClockRate) *
+                1e3 * static_cast<double>(p.memoryBusWidth) / 8.0 / 1e9);
     }
 #else
     (void)device;
@@ -48,9 +48,11 @@ static void print_device_banner(int device) {
 
 // Derive a sibling output path: "results/tiled.json" → "results/tiled_naive.json"
 static std::string naive_path(const std::string& tiled_path) {
-    if (tiled_path.empty()) return {};
+    if (tiled_path.empty())
+        return {};
     const auto pos = tiled_path.rfind('.');
-    if (pos == std::string::npos) return tiled_path + ".naive";
+    if (pos == std::string::npos)
+        return tiled_path + ".naive";
     return tiled_path.substr(0, pos) + "_naive" + tiled_path.substr(pos);
 }
 
@@ -66,7 +68,7 @@ int main(int argc, char** argv) {
     }
 
     print_device_banner(cfg.device);
-    std::printf("\nRadius : %d  (%d-th order)\n", STENCIL_RADIUS, 2*STENCIL_RADIUS);
+    std::printf("\nRadius : %d  (%d-th order)\n", STENCIL_RADIUS, 2 * STENCIL_RADIUS);
     std::printf("Steps  : %d  Warmup: %d\n\n", cfg.steps, cfg.warmup_steps);
 
     const std::vector<std::size_t> sizes =
@@ -74,10 +76,9 @@ int main(int argc, char** argv) {
                         : std::vector<std::size_t>{64, 128, 192, 256, 320, 384, 512};
 
     // Header
-    std::printf("%-8s  %10s  %10s  %10s  %10s  %8s\n",
-                "Grid", "Naive ms", "Naive GB/s", "Tiled ms", "Tiled GB/s", "Speedup");
-    std::printf("%-8s  %10s  %10s  %10s  %10s  %8s\n",
-                "--------", "----------", "----------",
+    std::printf("%-8s  %10s  %10s  %10s  %10s  %8s\n", "Grid", "Naive ms", "Naive GB/s", "Tiled ms",
+                "Tiled GB/s", "Speedup");
+    std::printf("%-8s  %10s  %10s  %10s  %10s  %8s\n", "--------", "----------", "----------",
                 "----------", "----------", "--------");
 
     std::vector<stencil::PerfResult> naive_results, tiled_results;
@@ -89,9 +90,9 @@ int main(int argc, char** argv) {
         stencil::PerfResult r_naive, r_tiled;
 
         try {
-            run.variant = stencil::KernelVariant::Naive;
-            auto s = stencil::make_solver(run);
-            r_naive = s->run(run.steps, run.warmup_steps);
+            run.variant   = stencil::KernelVariant::Naive;
+            auto s        = stencil::make_solver(run);
+            r_naive       = s->run(run.steps, run.warmup_steps);
             r_naive.label = "naive";
         } catch (const std::exception& e) {
             std::fprintf(stderr, "  naive %zu³ FAILED: %s\n", N, e.what());
@@ -99,23 +100,19 @@ int main(int argc, char** argv) {
         }
 
         try {
-            run.variant = stencil::KernelVariant::Tiled;
-            auto s = stencil::make_solver(run);
-            r_tiled = s->run(run.steps, run.warmup_steps);
+            run.variant   = stencil::KernelVariant::Tiled;
+            auto s        = stencil::make_solver(run);
+            r_tiled       = s->run(run.steps, run.warmup_steps);
             r_tiled.label = "tiled";
         } catch (const std::exception& e) {
             std::fprintf(stderr, "  tiled %zu³ FAILED: %s\n", N, e.what());
             continue;
         }
 
-        const double speedup = (r_tiled.time_ms > 0)
-                             ? r_naive.time_ms / r_tiled.time_ms : 0.0;
+        const double speedup = (r_tiled.time_ms > 0) ? r_naive.time_ms / r_tiled.time_ms : 0.0;
 
-        std::printf("%-8zu  %8.3f ms  %8.1f     %8.3f ms  %8.1f     %6.2f×\n",
-                    N,
-                    r_naive.time_ms, r_naive.bandwidth_gbs,
-                    r_tiled.time_ms, r_tiled.bandwidth_gbs,
-                    speedup);
+        std::printf("%-8zu  %8.3f ms  %8.1f     %8.3f ms  %8.1f     %6.2f×\n", N, r_naive.time_ms,
+                    r_naive.bandwidth_gbs, r_tiled.time_ms, r_tiled.bandwidth_gbs, speedup);
         std::fflush(stdout);
 
         naive_results.push_back(r_naive);
@@ -132,8 +129,10 @@ int main(int argc, char** argv) {
 
     // JSON output — separate files for naive and tiled so plot_results.py
     // can ingest them with --naive and --tiled flags independently
-    stencil::write_results_json(cfg.output_path,          tiled_results, cfg.device, cfg.steps, cfg.warmup_steps);
-    stencil::write_results_json(naive_path(cfg.output_path), naive_results, cfg.device, cfg.steps, cfg.warmup_steps);
+    stencil::write_results_json(cfg.output_path, tiled_results, cfg.device, cfg.steps,
+                                cfg.warmup_steps);
+    stencil::write_results_json(naive_path(cfg.output_path), naive_results, cfg.device, cfg.steps,
+                                cfg.warmup_steps);
 
     return EXIT_SUCCESS;
 }

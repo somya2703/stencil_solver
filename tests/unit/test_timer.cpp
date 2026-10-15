@@ -6,21 +6,20 @@
  * in integration tests.
  */
 
-#include "stencil/timer.hpp"
 #include <gtest/gtest.h>
+
+#include "stencil/timer.hpp"
 using namespace stencil;
 #include <chrono>
 #include <thread>
-
-
 
 TEST(CpuTimer, ElapsedPositive) {
     CpuTimer t;
     t.start();
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     t.stop();
-    EXPECT_GT(t.elapsed_ms(), 5.0);   // at least 5ms
-    EXPECT_LT(t.elapsed_ms(), 500.0); // not unreasonably long
+    EXPECT_GT(t.elapsed_ms(), 5.0);    // at least 5ms
+    EXPECT_LT(t.elapsed_ms(), 500.0);  // not unreasonably long
 }
 
 TEST(CpuTimer, ElapsedZero) {
@@ -35,15 +34,25 @@ TEST(CpuTimer, ElapsedZero) {
 TEST(PerfResult, DefaultValues) {
     PerfResult r;
     EXPECT_EQ(r.label, "");
-    EXPECT_DOUBLE_EQ(r.time_ms,       0.0);
+    EXPECT_DOUBLE_EQ(r.time_ms, 0.0);
     EXPECT_DOUBLE_EQ(r.bandwidth_gbs, 0.0);
-    EXPECT_DOUBLE_EQ(r.gflops,        0.0);
+    EXPECT_DOUBLE_EQ(r.gflops, 0.0);
 }
 
 TEST(FormatPerfTable, LabelsEachRowByGridSize) {
     std::vector<PerfResult> results;
-    PerfResult a; a.label = "naive"; a.time_ms = 1.403;  a.bandwidth_gbs = 1217.4; a.gflops = 608.7; a.grid_size = 256;
-    PerfResult b; b.label = "naive"; b.time_ms = 11.462; b.bandwidth_gbs = 1250.9; b.gflops = 625.5; b.grid_size = 512;
+    PerfResult a;
+    a.label         = "naive";
+    a.time_ms       = 1.403;
+    a.bandwidth_gbs = 1217.4;
+    a.gflops        = 608.7;
+    a.grid_size     = 256;
+    PerfResult b;
+    b.label         = "naive";
+    b.time_ms       = 11.462;
+    b.bandwidth_gbs = 1250.9;
+    b.gflops        = 625.5;
+    b.grid_size     = 512;
     results.push_back(a);
     results.push_back(b);
 
@@ -59,15 +68,19 @@ TEST(FormatPerfTable, LabelsEachRowByGridSize) {
 
 TEST(FormatPerfTable, HasGridColumnNoSpeedupColumn) {
     std::vector<PerfResult> results;
-    PerfResult a; a.label = "tiled"; a.time_ms = 2.0; a.bandwidth_gbs = 500.0; a.gflops = 250.0; a.grid_size = 128;
+    PerfResult a;
+    a.label         = "tiled";
+    a.time_ms       = 2.0;
+    a.bandwidth_gbs = 500.0;
+    a.gflops        = 250.0;
+    a.grid_size     = 128;
     results.push_back(a);
 
     testing::internal::CaptureStdout();
     format_perf_table(results);
     const std::string out = testing::internal::GetCapturedStdout();
 
-    EXPECT_NE(out.find("Grid"), std::string::npos)
-        << "table header should have a Grid column";
+    EXPECT_NE(out.find("Grid"), std::string::npos) << "table header should have a Grid column";
     EXPECT_EQ(out.find("Speedup"), std::string::npos)
         << "the meaningless cross-grid-size Speedup column must not return";
 }
@@ -90,8 +103,18 @@ TEST(FormatPerfTable, DoesNotCompareDifferentSizedRows) {
     // untouched -- i.e. nothing is silently computed relative to another
     // row.
     std::vector<PerfResult> results;
-    PerfResult a; a.label = "naive"; a.time_ms = 1.403;  a.bandwidth_gbs = 1217.4; a.gflops = 608.7; a.grid_size = 256;
-    PerfResult b; b.label = "naive"; b.time_ms = 11.462; b.bandwidth_gbs = 1250.9; b.gflops = 625.5; b.grid_size = 512;
+    PerfResult a;
+    a.label         = "naive";
+    a.time_ms       = 1.403;
+    a.bandwidth_gbs = 1217.4;
+    a.gflops        = 608.7;
+    a.grid_size     = 256;
+    PerfResult b;
+    b.label         = "naive";
+    b.time_ms       = 11.462;
+    b.bandwidth_gbs = 1250.9;
+    b.gflops        = 625.5;
+    b.grid_size     = 512;
     results.push_back(a);
     results.push_back(b);
 
@@ -104,8 +127,14 @@ TEST(FormatPerfTable, DoesNotCompareDifferentSizedRows) {
 }
 
 TEST(BandwidthFlops, ScalesWithGrid) {
-    GridDims g1; g1.nx = 64;  g1.ny = 64;  g1.nz = 64;
-    GridDims g2; g2.nx = 128; g2.ny = 128; g2.nz = 128;
+    GridDims g1;
+    g1.nx = 64;
+    g1.ny = 64;
+    g1.nz = 64;
+    GridDims g2;
+    g2.nx = 128;
+    g2.ny = 128;
+    g2.nz = 128;
 
     // Doubling each dimension should 8× the bandwidth and FLOP counts
     const double bw1 = bandwidth_bytes_per_step(g1);
@@ -118,14 +147,20 @@ TEST(BandwidthFlops, ScalesWithGrid) {
 }
 
 TEST(BandwidthFlops, CompulsoryBytes) {
-    GridDims g; g.nx = 64; g.ny = 64; g.nz = 64;
+    GridDims g;
+    g.nx           = 64;
+    g.ny           = 64;
+    g.nz           = 64;
     const double n = 64.0 - 2.0 * STENCIL_RADIUS;
     EXPECT_DOUBLE_EQ(compulsory_bytes_per_step(g), n * n * n * 4.0 * sizeof(real_t));
     EXPECT_LT(compulsory_bytes_per_step(g), bandwidth_bytes_per_step(g));
 }
 
 TEST(BandwidthFlops, PositiveValues) {
-    GridDims g; g.nx = 32; g.ny = 32; g.nz = 32;
+    GridDims g;
+    g.nx = 32;
+    g.ny = 32;
+    g.nz = 32;
     EXPECT_GT(bandwidth_bytes_per_step(g), 0.0);
-    EXPECT_GT(flops_per_step(g),           0.0);
+    EXPECT_GT(flops_per_step(g), 0.0);
 }
