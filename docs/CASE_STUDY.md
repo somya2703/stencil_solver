@@ -360,15 +360,6 @@ than 2% (seen firing on two of the three repeats). With matched clocks (7.99 / 7
 compare table read naive 96.2% and tiled 85.9% (about 185 and 165 GB/s, **[D]**). **[V]**
 for the clocks, **[I]** for the SM-bound reading of tiled's base-clock drop.
 
-**Correction: the dip is intermittent.** Repeating the 512^3 unlocked compare three more times
-gave DRAM clocks (naive / tiled) of 6.99 / 7.47, 7.99 / 6.99 and 7.99 / 7.99 GHz; an earlier
-run had 7.99 / 7.99 and another 6.99 / 7.99. So the table above is one sample, not a steady
-state: any kernel can land at a lowered clock in any launch, and the cause stays **[U]**.
-`scripts/profile_nsight.sh compare` now prints a note when the two clocks differ by more
-than 2% (seen firing on two of the three repeats). With matched clocks (7.99 / 7.99) the
-compare table read naive 96.2% and tiled 85.9% (about 185 and 165 GB/s, **[D]**). **[V]**
-for the clocks, **[I]** for the SM-bound reading of tiled's base-clock drop.
-
 Reproduce: `./build/bin/bench/bench_stream --warmup 10 --reps 100`; cross-check
 commands are in the header comment of `tests/perf/bench_stream.cu`.
 
