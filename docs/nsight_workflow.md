@@ -263,7 +263,7 @@ Attained GFLOP/s (Y)
         │  memory roof (diagonal: BW × AI)
         └─────────────── Arithmetic Intensity (X, log)
               ↑
-         AI ≈ 0.5 FLOP/byte for this stencil
+         AI ≈ 3.5 FLOP/byte for this stencil
 ```
 
 Both naive and tiled points appear at the **same X position** (same
