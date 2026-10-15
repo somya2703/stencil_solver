@@ -23,7 +23,8 @@ On this GPU it does not, and the investigation explains why.
 | DRAM read per step | 1.59 GB | 1.98 GB |
 
 - **Naive is already at the DRAM limit.** Nsight Compute reports about 96% of peak DRAM
-  throughput, and its time is within roughly 2-5% of the traffic floor. Reducing
+  throughput, and its time is about 4.5% above the floor at theoretical peak (about 2% at
+  the measured read and write rates). Reducing
   redundant reads cannot help much when L2 already absorbs them.
 - **The peak is independently checked.** A standalone read-only kernel reaches about
   188 GB/s (98% of the derived 192 GB/s peak).
@@ -135,7 +136,8 @@ won't necessarily transfer to other hardware (e.g. an A100's larger L2).
 ### Tiled kernel (`src/kernels/stencil_tiled.cu`)
 
 XY plane loaded once into shared memory per tile. Z direction served
-from a per-thread register pencil. Single global memory load per cell.
+from a per-thread register pencil. The design intent is a single global
+memory load per cell; measured DRAM reads are higher (see below).
 
 ```
 Block:   SMEM_X × SMEM_Y = 40 × 16 = 640 threads
@@ -150,8 +152,10 @@ PENCIL_Z=12 -- this repo's current default; see docs/CASE_STUDY.md 3.2):
   DRAM reads:          ~1.98 GB/step  (MORE than naive's ~1.59 GB, not
                        less -- see the note below)
   L1 hit rate:         ~28.8%
-  DRAM throughput:     ~89.0% of peak
-  Time per step:       ~16.1 ms  (0.71× of naive -- tiled is SLOWER on
+  DRAM throughput:     ~86-89% of peak (the percentage is normalised to the
+                       DRAM clock during the launch, which varies; see
+                       docs/CASE_STUDY.md 3.7)
+  Time per step:       ~16.0 ms  (0.72× of naive -- tiled is SLOWER on
                        this GPU, confirmed across every TILE_Y/PENCIL_Z
                        configuration tested; the best found is this one)
 ```
@@ -167,14 +171,15 @@ no-reuse figure, 112 B, is kept as `model_bandwidth_gbs`. See
 docs/BUILD_AND_RUN.md section 6C.)
 
 At AI = 3.5 FLOP/byte the kernel is deep in the memory-bound regime on
-any GPU. On datacenter-class hardware (A100, this kernel's original
-design target) the tiled kernel is expected to win by reducing
-effective DRAM traffic. **On this repo's reference hardware (RTX 4050
-Laptop, Ada Lovelace) that is not what happens**: tiled reads *more*
+any GPU. The tiled kernel was designed for datacenter-class hardware (A100) on
+the assumption that it would win by reducing effective DRAM traffic;
+that assumption has not been tested on such a GPU. **On this repo's
+reference hardware (RTX 4050 Laptop, Ada Lovelace) it does not hold**: tiled reads *more*
 DRAM than naive at every configuration tested, and naive is already
 near this GPU's practical DRAM-bandwidth ceiling. The measured
-slowdown traces mainly to barrier stalls from halo-only warps and
-extra warp instructions, not to bandwidth utilisation. See
+slowdown comes with high barrier-stall fractions (33-51% of warp cycles,
+naive: 0%) and 1.6-2.4x the warp instructions; attributing it to
+halo-only warps is inferred, not tested by changing the kernel. See
 `docs/CASE_STUDY.md` for the full counter-backed investigation,
 including which candidate explanations hold up and which don't.
 
@@ -208,13 +213,12 @@ step-by-step guide and interpretation notes.
 ./build/bin/bench/bench_tiled --steps 200 --warmup 20 \
     --output results/bench_tiled.json
 
-# Generate report and plots
+# Generate report and plots (peak values are this card's, not the A100
+# defaults; see docs/CASE_STUDY.md section 2)
 python3 scripts/plot_results.py \
     --naive  results/bench_tiled_naive.json \
     --tiled  results/bench_tiled.json \
     --peak-bw 192 --peak-flops 12 \
-    # (this card's real peak, not the A100 defaults shown in older
-    # revisions of this command -- see docs/CASE_STUDY.md section 2)
     --outdir docs/plots \
     --report docs/BENCHMARKS.md
 ```
