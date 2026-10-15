@@ -51,7 +51,7 @@ jobs:
     needs: format-check
  
     container:
-      image: nvcr.io/nvidia/cuda:${{ env.CUDA_VERSION }}-devel-ubuntu22.04
+      image: nvcr.io/nvidia/cuda:12.4.1-devel-ubuntu22.04
       options: --user root
  
     steps:
@@ -206,7 +206,7 @@ jobs:
     if: false
  
     container:
-      image: nvcr.io/nvidia/cuda:${{ env.CUDA_VERSION }}-devel-ubuntu22.04
+      image: nvcr.io/nvidia/cuda:12.4.1-devel-ubuntu22.04
       options: --user root
  
     steps:
@@ -261,7 +261,7 @@ jobs:
     if: false
  
     container:
-      image: nvcr.io/nvidia/cuda:${{ env.CUDA_VERSION }}-devel-ubuntu22.04
+      image: nvcr.io/nvidia/cuda:12.4.1-devel-ubuntu22.04
       options: --user root
  
     steps:
