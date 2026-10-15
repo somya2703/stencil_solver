@@ -245,6 +245,18 @@ for label, key, fmt in rows:
     nv = fmt(n.get(key, "")) if n else "—"
     tv = fmt(t.get(key, "")) if t else "—"
     print(f"  {label:<30}  {nv:>12}  {tv:>12}")
+
+# DRAM % is normalised to the DRAM clock during each launch (docs/CASE_STUDY.md 3.7).
+# If the two launches ran at different clocks the two % columns are not comparable.
+try:
+    ck = "dram__cycles_elapsed.avg.per_second"
+    cn, ct = float(n.get(ck, "")), float(t.get(ck, ""))
+    if min(cn, ct) > 0 and abs(cn - ct) / max(cn, ct) > 0.02:
+        print()
+        print("  NOTE: DRAM clocks differ between the two launches; the DRAM throughput %")
+        print("  rows are normalised to different peaks. Compare bytes/time, not the %.")
+except (ValueError, TypeError):
+    pass
 PYEOF
 }
 
