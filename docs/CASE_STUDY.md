@@ -327,7 +327,28 @@ default-cache-control launches, never in warm ones; why they occur only sometime
 **[U]** (a memory-clock ramp after idle is plausible but untested). Use bytes÷time, or
 record the DRAM clock alongside the percentage. **[V]** for the table, **[I]** for the
 mechanism. Other cases where a DRAM-% gap was seen (§5.3, locked vs unlocked clocks) were
-not re-examined with the clock recorded.
+not re-examined with the clock recorded until the check below.
+
+**Clock-recorded compare runs** (`scripts/profile_nsight.sh compare`, 512^3, one launch each,
+`--steps 1 --warmup 0`; `CLOCK_CONTROL` = none or base):
+
+| Kernel, mode | DRAM clock | Reported DRAM % | Implied GB/s |
+|---|---|---|---|
+| naive, none | 6.99 GHz | 96.4 | ~162 |
+| naive, base | 6.99 | 95.8 | ~161 |
+| tiled (8/12), none | 7.99 | 86.4 | ~166 |
+| tiled (8/12), base | 7.99 | 74.2 | ~142 |
+
+- Implied GB/s = reported % x 192.0 x (clock / 7.99 GHz). **[D]**
+- The wrapper's launches can run at a lowered DRAM clock (6.99 GHz seen for naive at 512^3 and for
+  both kernels at 255^3, in repeated runs and under both clock-control modes), so its DRAM %
+  columns are not comparable between kernels unless the clock row matches. **[V]** for the
+  clocks; the cause (a memory-clock ramp after a short or cold run) is **[U]**.
+- Naive's implied time at the lowered clock is about 13 ms against 11.46 ms steady state. **[D]**
+- Tiled's DRAM % drops from 86.4 to 74.2 under base SM clocks with the memory clock unchanged,
+  while naive is unchanged: consistent with tiled being SM-bound, not tested directly. **[I]**
+- The earlier locked-vs-unlocked DRAM % pair (79.5 vs ~89) came from runs without the clock
+  recorded, so it is not re-derived here.
 
 Reproduce: `./build/bin/bench/bench_stream --warmup 10 --reps 100`; cross-check
 commands are in the header comment of `tests/perf/bench_stream.cu`.
