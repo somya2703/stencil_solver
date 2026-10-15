@@ -205,7 +205,8 @@ void kernel_tiled(
                 lap_z += c_fd[r] * (pencil[R + r] + pencil[R - r]) * inv_dz2;
 
             // Leapfrog time integration
-            p_next[c] = real_t{2} * p_cur[c]
+            // pencil[R] holds p_cur at (gix, giy, iz) == p_cur[c]; no global reload.
+            p_next[c] = real_t{2} * pencil[R]
                       - p_prev[c]
                       + dt2 * vel2[c] * (lap_x + lap_y + lap_z);
         }
