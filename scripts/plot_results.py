@@ -42,12 +42,12 @@ def compute_arithmetic_intensity(stencil_radius: int, precision: str) -> float:
 
     Matches the formula in include/stencil/types.hpp:
       flops_per_point = 3*(4R+1) + 5
-      bytes_per_point = (6R+4) * sizeof(real_t)
+      bytes_per_point = 4 * sizeof(real_t)  (compulsory DRAM traffic)
     """
     bytes_per_elem = 8 if precision == "fp64" else 4
     R = stencil_radius
     flops = 3 * (4 * R + 1) + 5
-    bytes_moved = (6 * R + 4) * bytes_per_elem
+    bytes_moved = 4 * bytes_per_elem
     return flops / bytes_moved
 
 def load_json(path: str) -> dict[str, Any]:

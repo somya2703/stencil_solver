@@ -95,6 +95,7 @@ struct PerfResult {
     double      time_ms      = 0.0;  ///< mean wall time per step [ms]
     double      bandwidth_gbs = 0.0; ///< effective bandwidth [GB/s]
     double      gflops        = 0.0; ///< compute throughput [GFLOP/s]
+    double      model_bandwidth_gbs = 0.0; ///< no-reuse model traffic / time [GB/s]; tracks L2, not DRAM
     std::size_t grid_size     = 0;   ///< N where grid is N×N×N (for reporting)
 };
 

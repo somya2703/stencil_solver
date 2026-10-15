@@ -110,6 +110,7 @@ void write_results_json(const std::string&            path,
         js << "      \"grid_size\": "      << r.grid_size           << ",\n";
         js << "      \"time_ms\": "        << r.time_ms             << ",\n";
         js << "      \"bandwidth_gbs\": "  << r.bandwidth_gbs       << ",\n";
+        js << "      \"model_bandwidth_gbs\": " << r.model_bandwidth_gbs << ",\n";
         js << "      \"gflops\": "         << r.gflops              << "\n";
         js << "    }" << (i + 1 < results.size() ? "," : "") << "\n";
     }

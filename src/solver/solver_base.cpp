@@ -93,7 +93,8 @@ PerfResult SolverBase::run(int n_steps, int warmup) {
     const double ms_per_step = total_ms / static_cast<double>(n_steps);
 
     // Roofline metrics
-    const double bw_bytes = bandwidth_bytes_per_step(grid_->dims());
+    const double bw_bytes    = compulsory_bytes_per_step(grid_->dims());
+    const double model_bytes = bandwidth_bytes_per_step(grid_->dims());
     const double flops    = flops_per_step(grid_->dims());
 
     NVTX_POP();
@@ -102,6 +103,7 @@ PerfResult SolverBase::run(int n_steps, int warmup) {
     r.label         = name();
     r.time_ms       = ms_per_step;
     r.bandwidth_gbs = bw_bytes / (ms_per_step * 1e-3) / 1e9;
+    r.model_bandwidth_gbs = model_bytes / (ms_per_step * 1e-3) / 1e9;
     r.gflops        = flops    / (ms_per_step * 1e-3) / 1e9;
     r.grid_size     = grid_->dims().nx;
     return r;

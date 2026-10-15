@@ -187,12 +187,24 @@ struct FDCoeffs<4> {
  *   p_next: 1 write
  *
  * Total = (6R + 3) reads + 1 write = (6R+4) × sizeof(real_t) per point.
- * (Assumes no L2 reuse across steps — conservative / matches Nsight DRAM metric.)
+ * (Assumes no cache reuse at all: a MODEL number that tracks L2 traffic, not DRAM.
+ * See compulsory_bytes_per_step() for the DRAM-oriented figure.)
  */
 inline double bandwidth_bytes_per_step(const GridDims& g) {
     const int    R = STENCIL_RADIUS;
     const double N = static_cast<double>(g.interior_size());
     return N * static_cast<double>(6 * R + 4) * sizeof(real_t);
+}
+
+/**
+ * Compulsory DRAM traffic per step (bytes): each interior point of p_cur, p_prev and
+ * vel2 is read once and p_next is written once = 4 * sizeof(real_t) per point.
+ * A lower bound on DRAM bytes (ignores halo re-reads), so bytes/time is an
+ * effective bandwidth comparable with Nsight's DRAM throughput.
+ */
+inline double compulsory_bytes_per_step(const GridDims& g) {
+    const double N = static_cast<double>(g.interior_size());
+    return N * 4.0 * sizeof(real_t);
 }
 
 /**

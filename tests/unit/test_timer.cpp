@@ -117,6 +117,13 @@ TEST(BandwidthFlops, ScalesWithGrid) {
     EXPECT_NEAR(fl2 / fl1, 8.0, 2.5);
 }
 
+TEST(BandwidthFlops, CompulsoryBytes) {
+    GridDims g; g.nx = 64; g.ny = 64; g.nz = 64;
+    const double n = 64.0 - 2.0 * STENCIL_RADIUS;
+    EXPECT_DOUBLE_EQ(compulsory_bytes_per_step(g), n * n * n * 4.0 * sizeof(real_t));
+    EXPECT_LT(compulsory_bytes_per_step(g), bandwidth_bytes_per_step(g));
+}
+
 TEST(BandwidthFlops, PositiveValues) {
     GridDims g; g.nx = 32; g.ny = 32; g.nz = 32;
     EXPECT_GT(bandwidth_bytes_per_step(g), 0.0);
