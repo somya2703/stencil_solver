@@ -35,6 +35,7 @@ A counter-backed performance case study of `stencil-solver` (8th-order 3-D wave 
 |---|---|
 | GPU | NVIDIA GeForce RTX 4050 Laptop, Ada Lovelace, SM 8.9, 20 SMs, 6141 MiB |
 | Driver / toolkit | 595.84 (reports CUDA 13.2) / nvcc 12.8.93 |
+| Driver note | Kernel module 595.84 while the user-space packages were 595.99.02 (NVML mismatch seen during the §3.7 clock tests, so the later `bench_stream`, Nsight and compare runs used that mixed state; when it began is unknown). After a reboot the module is 595.99.02. `bench_stream` re-run: read 187.8, write 183.6, copy 174.5 GB/s best, within 0.5% of the earlier runs. The solver benchmarks (§3.1-3.2) were not re-run on the new driver. |
 | Host toolchain | GCC 13.3.0, CMake 3.28.3, Ninja 1.11.1, Python 3.11.10, Ubuntu (Legion 5 16IRX9) |
 | Profilers | Nsight Compute 2025.1.1.0, Nsight Systems (bundled with CUDA 12.8) |
 | Build | Release, `CMAKE_CUDA_ARCHITECTURES=89`, NVTX on; fresh `build/` (previous one moved to `build-prev/`) |
