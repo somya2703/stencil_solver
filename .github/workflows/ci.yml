@@ -62,7 +62,9 @@ jobs:
           apt-get update && apt-get install -y --no-install-recommends \
             cmake ninja-build git python3 python3-pip \
             libopenmpi-dev ccache
-          pip3 install --no-cache-dir "conan==${{ env.CONAN_VERSION }}"
+          pip3 install --no-cache-dir "cmake>=3.24" "conan==${{ env.CONAN_VERSION }}"
+          hash -r
+          cmake --version
           conan profile detect --force
  
       - name: Cache Conan
@@ -120,6 +122,7 @@ jobs:
           path: |
             unit-results.xml
             build/Testing/
+          if-no-files-found: ignore
  
       - name: Post test summary
         if: always()
