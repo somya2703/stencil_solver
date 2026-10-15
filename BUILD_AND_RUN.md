@@ -358,7 +358,7 @@ Grid: 255³   steps: 100   warmup: 10
   Memory/field  : 66.33 MB
   Fields (3×p + vel2): 265.30 MB
 
-  wave/naive               1.572 ms/step   1073.6 GB/s    536.8 GFLOP/s
+  wave/naive                   1.530 ms/step    157.6 GB/s    551.6 GFLOP/s
 ```
 
 `--warmup 10` is short: a cold process or one following a smaller run
@@ -412,19 +412,19 @@ Z pencil depth : 12
 
 Grid        Naive ms   BW (GB/s)    Tiled ms   BW (GB/s)   Speedup
 --------  ----------  ----------  ----------  ----------  --------
-512         11.495 ms    1247.4       15.913 ms     901.1       0.72×
+512         11.564 ms     177.1       15.972 ms     128.2       0.72×
 
 ── Naive ────────────────────────────────────────────────
 
 Kernel                          Grid     ms/step        GB/s       GFLOP/s
 --------------------------  --------  ----------  ----------  ------------
-  naive                        512³    11.495 ms    1247.4          623.7
+  naive                        512³    11.564 ms     177.1          620.0
 
 ── Tiled ────────────────────────────────────────────────
 
 Kernel                          Grid     ms/step        GB/s       GFLOP/s
 --------------------------  --------  ----------  ----------  ------------
-  tiled                        512³    15.913 ms     901.1          450.5
+  tiled                        512³    15.972 ms     128.2          448.9
 ```
 
 **Tiled is slower than naive on this GPU — at this configuration
@@ -470,30 +470,24 @@ Steps  : 200  Warmup: 20
 
 Grid         ms/step        GB/s       GFLOP/s
 --------  ----------  ----------  ------------
-64           0.012 ms    1665.4          832.7
-128          0.187 ms    1036.7          518.4
-192          0.664 ms    1050.4          525.2
-256          1.403 ms    1217.4          608.7
-320          2.779 ms    1224.2          612.1
-384          4.797 ms    1241.2          620.6
-512         11.462 ms    1250.9          625.5
-
+64           0.012 ms     236.7          828.3
+128          0.188 ms     146.9          514.3
+192          0.666 ms     149.6          523.4
+256          1.401 ms     174.2          609.8
+320          2.763 ms     175.9          615.7
+384          4.800 ms     177.2          620.1
+512         11.470 ms     178.6          625.0
 Results written to: results/bench_naive.json
 ```
 
-> ⚠️ **Small-grid GB/s numbers are inflated, not a real memory-bandwidth
-> measurement — and this holds even after the peak-bandwidth fix
-> above.** `bandwidth_bytes_per_step()` in `types.hpp` assumes zero
-> cache reuse between steps. At 64³ the whole working set fits
-> comfortably in L2, so most traffic is served from cache, not DRAM —
-> the reported figure (1665 GB/s above) is roughly 9× the corrected
-> ~192 GB/s physical peak. This isn't just a small-grid artifact: even
-> at 512³, Nsight Compute shows naive's *measured* DRAM throughput at
-> 95.7% of peak while this same model-based number reads 1250 GB/s —
-> about 6.5× too high. Treat every "GB/s" and "BW Eff." figure in this
-> repo's console/JSON output as a model number (closer to L2 traffic),
-> not a DRAM measurement; see `docs/CASE_STUDY.md` §3.3 and
-> Troubleshooting below.
+> **How to read the GB/s column.** Since L1, `GB/s` is compulsory traffic
+> (each interior point of `p_cur`, `p_prev`, `vel2` read once, `p_next` written
+> once = 16 B/point) divided by time, so it is an effective bandwidth. At 512^3 it
+> reads about 178 GB/s for naive (about 93% of 192), in line with Nsight's DRAM
+> throughput. Small grids can read above 192 GB/s (64^3: about 237) because they
+> fit in the 24 MiB L2, so those rows are not DRAM measurements. The old no-reuse
+> figure is kept as `model_bandwidth_gbs` in the JSON. See `docs/CASE_STUDY.md`
+> section 3.3.
 
 ### 6B — Tiled benchmark (naive vs tiled comparison)
 
@@ -516,13 +510,13 @@ Steps  : 200  Warmup: 20
 
 Grid        Naive ms  Naive GB/s    Tiled ms  Tiled GB/s   Speedup
 --------  ----------  ----------  ----------  ----------  --------
-64           0.009 ms    2101.5        0.019 ms    1024.0       0.49×
-128          0.157 ms    1230.3        0.200 ms     968.7       0.79×
-192          0.582 ms    1199.1        0.740 ms     943.3       0.79×
-256          1.399 ms    1221.1        1.807 ms     945.4       0.77×
-320          2.758 ms    1233.4        3.528 ms     964.0       0.78×
-384          4.801 ms    1240.0        6.717 ms     886.4       0.71×
-512         11.463 ms    1250.8       15.992 ms     896.6       0.72×
+64           0.012 ms     237.2        0.025 ms     114.5       0.48×
+128          0.188 ms     147.0        0.224 ms     123.6       0.84×
+192          0.617 ms     161.4        0.734 ms     135.9       0.84×
+256          1.403 ms     173.9        1.802 ms     135.4       0.78×
+320          2.758 ms     176.2        3.541 ms     137.2       0.78×
+384          4.797 ms     177.3        6.723 ms     126.5       0.71×
+512         11.447 ms     178.9       15.982 ms     128.2       0.72×
 
 (The per-size "Summary" / "Tiled" tables printed below this one are omitted here.)
 
@@ -559,23 +553,20 @@ Radius    : 4  (8-th order)
 
 Grid         ms/step        GB/s     BW Eff.
 --------  ----------  ----------  ----------
-64           0.019 ms    1022.2        532.4%
-96           0.058 ms    1323.4        689.2%
-128          0.193 ms    1000.2        520.9%
-192          0.732 ms     953.7        496.7%
-256          1.804 ms     947.1        493.2%
-384          6.702 ms     888.4        462.6%
-512         16.011 ms     895.6        466.4%
+64           0.019 ms     146.2         76.1%
+96           0.058 ms     188.9         98.4%
+128          0.193 ms     143.5         74.8%
+192          0.736 ms     135.4         70.5%
+256          1.815 ms     134.5         70.0%
+384          6.713 ms     126.7         66.0%
+512         15.976 ms     128.2         66.8%
 Scaling results written to: results/bench_scaling.json
 ```
 
-> ⚠️ **`BW Eff.` is not a trustworthy efficiency percentage, even
-> after the peak-bandwidth fix.** It divides the model byte-count
-> above (closer to L2 traffic than DRAM traffic) by the peak, so it
-> still reads well over 100%. This is a known, unfixed limitation
-> (checklist item L1) — don't use this column as a real
-> bandwidth-efficiency figure until the numerator is replaced with a
-> measured DRAM-byte count. See `docs/CASE_STUDY.md` §3.3.
+> **`BW Eff.`** is now compulsory-traffic GB/s divided by the derived peak, so it is
+> a meaningful fraction at large grids (about 67% for tiled at 512^3). Small grids
+> (96^3 reads 98%) can be inflated by L2 reuse. It is a lower-bound-bytes estimate,
+> not a counter measurement; see `docs/CASE_STUDY.md` section 3.3.
 
 ### 6D — DRAM bandwidth test (STREAM-style, optional)
 
@@ -630,13 +621,9 @@ disagree again, check that `write_markdown_report()` reads
 > A100 defaults (`2039`/`312`) — otherwise the roofline ceiling is
 > drawn for hardware you don't have.
 >
-> Even with the corrected peak-bw, the roofline plot will show every
-> naive and tiled point sitting *above* the drawn memory roof. That's
-> the same model-vs-measured-bytes issue as `BW Eff.` above (checklist
-> item L1) — the plotted "GFLOP/s" values are real, but the x-axis
-> arithmetic intensity is computed against modeled bytes, not measured
-> DRAM bytes, so the roof itself is drawn too low. Treat the roofline
-> plot as illustrative only until L1 is fixed.
+> With L1 the roofline uses arithmetic intensity 56 FLOP / 16 B = 3.5, so the memory
+> roof is about 3.5 x 192 = 672 GFLOP/s and the naive and tiled points sit below it
+> (naive about 93%, tiled about 67%).
 
 ---
 
@@ -956,8 +943,8 @@ for this guide; tracked separately.*
 | `docs/BENCHMARKS.md` "Average speedup" doesn't match the per-row table's sign | `write_markdown_report()` in `plot_results.py` averaged `tiled/naive` instead of `naive/tiled` | Fixed in the current repo; if you still see this, check `scripts/plot_results.py` for `speedups.append(n_r["time_ms"] / t_r["time_ms"])` |
 | A multi-size sweep's "Summary" table used to show a Speedup column like `1.00×, 0.12×, 0.02×` | `format_perf_table()` compared every row to row 0 regardless of grid size | Fixed (checklist M1): the tables now carry a Grid column and no cross-size Speedup | Rebuild from the current repo |
 | `ctest --label-regex unit` doesn't report 59 tests | A test file wasn't wired into `add_unit_test(...)` in `tests/CMakeLists.txt`, or you're comparing against an older/incorrect expected count | Re-check `tests/CMakeLists.txt`; 59 is the correct total for `test_fd_coeffs`, `test_grid`, `test_timer`, `test_solver_cpu`, `test_solver`, `test_kernels` |
-| Reported GB/s exceeds this GPU's peak at small grid sizes (or even at 512³) | `bandwidth_bytes_per_step()` assumes zero cache reuse; the resulting number tracks L2 traffic, not DRAM bandwidth, at any grid size | Treat every "GB/s"/"BW Eff." figure as a model number, not a DRAM measurement, until checklist item L1 lands; see `docs/CASE_STUDY.md` §3.3 |
-| `bench_scaling`'s `BW Eff.` column reads well above 100% (even 700%+) | Same model-vs-measured-bytes issue as above; the peak-bandwidth fix alone doesn't correct the numerator | Known limitation (checklist item L1); don't trust this column yet |
+| Reported GB/s exceeds this GPU's peak at small grid sizes (or even at 512³) | `bandwidth_bytes_per_step()` assumes zero cache reuse; the resulting number tracks L2 traffic, not DRAM bandwidth, at any grid size | Fixed by L1: `GB/s` is now compulsory traffic (4 x interior x 4 B) / time, so it tracks DRAM to within a few percent at large grids. Small grids (<= ~192^3) can still exceed peak because they fit in the 24 MiB L2. The old figure is `model_bandwidth_gbs` in the JSON; see `docs/CASE_STUDY.md` §3.3 |
+| `bench_scaling`'s `BW Eff.` column reads well above 100% (even 700%+) | Same model-vs-measured-bytes issue as above; the peak-bandwidth fix alone doesn't correct the numerator | Fixed by L1 (compulsory-traffic numerator): 512^3 now reads about 67%. Old JSON files from before L1 still hold the model figure under `bandwidth_gbs`; don't mix them in one plot |
 | `docs/plots/*.png` or `docs/BENCHMARKS.md` fails to write with `PermissionError` | A prior Docker run (without `--user "$(id -u):$(id -g)"`) left `docs/plots/` (or another output directory) root-owned | `sudo chown -R "$USER:$USER" docs/plots` (or whichever directory is affected) |
 | `./scripts/profile_nsight.sh compare` prints `—` for metrics | Older script: it parsed `ncu`'s long-format CSV as if it were wide. Current script: a single `—` means that metric came back `n/a` (e.g. `l1tex__hit_rate.pct`) | Fixed (checklist M6): the current script pivots the CSV. If every cell is `—`, update the script |
 | `ncu --launch-count 1` on `stencil_tiled` only ever profiles `kernel_naive`, never `kernel_tiled` | `stencil_tiled`'s binary always launches naive before tiled in one process; `--launch-count 1` stops at the very first launch | For raw `ncu`: use `-k kernel_tiled` (or `--launch-skip 1`) with `--steps 1 --warmup 0`, per Section 8C. `profile_nsight.sh compare` now does this itself via `KERNEL_FILTER` |
@@ -981,7 +968,7 @@ for this guide; tracked separately.*
 | `stencil_multigpu` | Same + MPI rank count | Single-rank smoke test only on this hardware |
 | `bench_naive` | Grid sweep or single size | Console: 7-row sweep table (safe up to 512³ on 6.1 GB). JSON |
 | `bench_tiled` | Same | Console: naive+tiled side-by-side table. Two JSON files |
-| `bench_scaling` | Grid sweep | Console: BW efficiency % table (relative to ~192 GB/s here; see the `BW Eff.` caveat in 6C) |
+| `bench_scaling` | Grid sweep | Console: BW efficiency % table (compulsory-traffic GB/s relative to ~192 GB/s; see 6C) |
 | `bench_stream` | Buffer size, reps | Console: read/write/copy GB/s and % of derived peak. Optional JSON |
 | `test_*` | (none) | GoogleTest pass/fail output — 59 unit tests, 15 GPU tests |
 
@@ -1163,3 +1150,9 @@ reference hardware):**
 
 25. **5B/6B/6C output blocks re-measured at `TILE_Y=8, PENCIL_Z=12`.** Tiled is
     0.49–0.79× of naive across sizes (0.72× at 512³). Added 6D (`bench_stream`).
+
+**L1 batch:**
+
+26. **Reported bandwidth is now compulsory traffic**, not the no-reuse model: naive 512^3 reads
+    about 178 GB/s (about 93% of 192), tiled about 128, `BW Eff.` about 67%. The old figure is
+    kept as `model_bandwidth_gbs`. 5B/6A/6B/6C blocks re-captured.

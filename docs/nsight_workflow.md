@@ -105,9 +105,9 @@ it is not what `dram__bytes_read.sum` reports):
   compulsory byte volume at this GPU's ~192 GB/s peak
 
 See docs/CASE_STUDY.md section 3.3 for the full derivation and the
-`BW Eff.`/roofline caveat this implies for every "GB/s" figure this
-repo's own console and JSON output print (those are the formula
-number, not a DRAM measurement).
+caveats on every "GB/s" figure: since L1 the printed GB/s is compulsory
+traffic over time (close to DRAM at large grids, L2-inflated at small
+ones), and the old no-reuse figure is `model_bandwidth_gbs`.
 
 ---
 

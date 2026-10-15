@@ -129,15 +129,14 @@ PENCIL_Z=12 -- this repo's current default; see docs/CASE_STUDY.md 3.2):
 ### Roofline position
 
 ```
-Arithmetic intensity = 56 FLOP / 112 bytes = 0.5 FLOP/byte (R=4, fp32)
+Arithmetic intensity = 56 FLOP / 16 bytes = 3.5 FLOP/byte (R=4, fp32, compulsory traffic)
 ```
 
-(This AI is a modelled value -- FLOPs and bytes per point from the
-stencil's own formula, not measured DRAM bytes; see the `BW Eff.`
-caveat in docs/BUILD_AND_RUN.md section 6C for why that distinction
-matters.)
+(Bytes are the compulsory traffic per point, 4 x 4 B; the earlier
+no-reuse figure, 112 B, is kept as `model_bandwidth_gbs`. See
+docs/BUILD_AND_RUN.md section 6C.)
 
-At AI = 0.5 FLOP/byte the kernel is deep in the memory-bound regime on
+At AI = 3.5 FLOP/byte the kernel is deep in the memory-bound regime on
 any GPU. On datacenter-class hardware (A100, this kernel's original
 design target) the tiled kernel is expected to win by reducing
 effective DRAM traffic. **On this repo's reference hardware (RTX 4050
