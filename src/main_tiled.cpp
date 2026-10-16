@@ -49,8 +49,8 @@ static void print_device_info(int device) {
                         static_cast<double>(prop.memoryClockRate) * 1e3 *
                         static_cast<double>(prop.memoryBusWidth) / 8.0 / 1e9);
         std::printf("  SMEM tile (tiled): %d B\n", (TILE_X + 2 * STENCIL_RADIUS) *
-                                                        (TILE_Y + 2 * STENCIL_RADIUS) *
-                                                        static_cast<int>(sizeof(real_t)));
+                                                       (TILE_Y + 2 * STENCIL_RADIUS) *
+                                                       static_cast<int>(sizeof(real_t)));
     }
 #else
     (void)device;
@@ -87,8 +87,8 @@ int main(int argc, char** argv) {
 
     print_device_info(cfg.device);
     std::printf("\nStencil radius : %d  (%d-th order)\n", STENCIL_RADIUS, 2 * STENCIL_RADIUS);
-    std::printf("Thread block   : %d × %d  (%d threads, one output column each)\n", TILE_X,
-                TILE_Y, TILE_X * TILE_Y);
+    std::printf("Thread block   : %d × %d  (%d threads, one output column each)\n", TILE_X, TILE_Y,
+                TILE_X * TILE_Y);
     std::printf("SMEM tile      : %d × %d  (output tile + radius-%d halo)\n",
                 TILE_X + 2 * STENCIL_RADIUS, TILE_Y + 2 * STENCIL_RADIUS, STENCIL_RADIUS);
     std::printf("Z pencil depth : %d\n\n", PENCIL_Z);
