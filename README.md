@@ -1,5 +1,7 @@
 # stencil-solver
 
+[![CI](https://github.com/somya2703/stencil_solver/actions/workflows/ci.yml/badge.svg)](https://github.com/somya2703/stencil_solver/actions/workflows/ci.yml)
+
 A GPU-accelerated 3D finite-difference stencil solver demonstrating
 Nsight-driven optimisation for seismic and heat-diffusion workloads.
 
