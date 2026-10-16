@@ -701,8 +701,8 @@ sweep iteration as root.)
 **Measured result on this GPU:** every configuration in the swept
 range showed tiled *slower* than naive (speedup < 1.0×). Across a
 wider sweep than the loop above (`TILE_Y` ∈ {4, 8, 16}, `PENCIL_Z`
-stepped from 8 to 32), the best found was **`TILE_Y=8, PENCIL_Z=12`
-at ≈0.71×** (confirmed over five repeated 200-step runs) — not
+stepped from 8 to 32), the best found for the **v1 kernel** was **`TILE_Y=8, PENCIL_Z=12`
+at ≈0.71×** (the v2 kernel's default `8/20` reaches ≈0.87×; see `docs/CASE_STUDY.md` §3.8) (confirmed over five repeated 200-step runs) — not
 `TILE_Y=16, PENCIL_Z=24` (≈0.69×), which is close but not optimal.
 This is not a broken sweep; it's a real, reproducible finding on this
 Ada-class laptop GPU. The full sweep table, repeat-run confirmation,

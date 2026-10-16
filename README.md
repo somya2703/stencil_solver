@@ -166,13 +166,12 @@ memory load per cell; measured DRAM reads are higher (see below).
 ```
 Block:   SMEM_X × SMEM_Y = 40 × 16 = 640 threads
 SMEM:    40 × 16 × 4 B = 2,560 B per block
-Pencil:  PENCIL_Z + 2R = 20 live values in the sliding window at this
-         repo's current default (PENCIL_Z=12); the compiler's actual
-         total register count per thread is 48 (the pencil array isn't
-         the only thing using registers) -- see docs/CASE_STUDY.md 3.2
+Pencil:  PENCIL_Z + 2R live values in the sliding window (v1 numbers
+         below: PENCIL_Z=12, 48 registers per thread; the v2 default is
+         PENCIL_Z=20 with 61 registers) -- see docs/CASE_STUDY.md 3.2, 3.8
 
 Measured Nsight Compute, v1 kernel (before commit 1e178db) (512³, fp32, RTX 4050 Laptop GPU, TILE_Y=8,
-PENCIL_Z=12 -- this repo's current default; see docs/CASE_STUDY.md 3.2):
+PENCIL_Z=12 -- the v1 default; see docs/CASE_STUDY.md 3.2):
   DRAM reads:          ~1.98 GB/step  (MORE than naive's ~1.59 GB, not
                        less -- see the note below)
   L1 hit rate:         ~28.8%
@@ -181,7 +180,7 @@ PENCIL_Z=12 -- this repo's current default; see docs/CASE_STUDY.md 3.2):
                        docs/CASE_STUDY.md 3.7)
   Time per step:       ~16.0 ms  (0.72× of naive -- tiled is SLOWER on
                        this GPU, confirmed across every TILE_Y/PENCIL_Z
-                       configuration tested; the best found is this one)
+                       configuration tested for v1; v2 reaches 0.87x, see 3.8)
 ```
 
 ### Roofline position
