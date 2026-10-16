@@ -423,7 +423,14 @@ Size sweep at PZ=20 (single runs): 64^3 0.49x, 128^3 0.97x, 192^3 1.02x, 256^3 0
   occupancy effects (58 to 79 registers); the default PZ=20 may not transfer to other GPUs. **[I]**
 - Naive is still faster at DRAM-bound sizes. It sits within about 2-5% of the traffic floor, so
   0.87x is close to what this kernel family can reach on this GPU. **[I]**
-- Not yet measured for v2: DRAM bytes, barrier-stall share, per-line stalls.
+- **v2 counters** (`ncu --clock-control none`, one 512^3 launch, PZ=20; the launch ran at a
+  lowered DRAM clock of 6.99 GHz, so its duration, 14.72 ms, and the 94.6% DRAM figure are
+  not comparable with the 13.1 ms benchmark): DRAM read 1.82 GB (v1: 1.98 GB, naive: 1.59 GB),
+  write 0.517 GB, warp instructions 0.880 B (v1: 1.263 B), barrier stall 20.2% (v1: 47%),
+  long-scoreboard stall 59.7% (v1: 22.6%). **[V]** The barrier-stall drop supports the
+  halo-warp explanation; that it is the cause remains **[I]**. v2 is now mostly limited by
+  waiting on global loads, so earlier conclusions about load prefetching (measured on v1)
+  do not necessarily carry over. Per-line stall attribution for v2 was not collected.
 
 ---
 
