@@ -377,6 +377,20 @@ than 2% (seen firing on two of the three repeats). With matched clocks (7.99 / 7
 compare table read naive 96.2% and tiled 85.9% (about 185 and 165 GB/s, **[D]**). **[V]**
 for the clocks, **[I]** for the SM-bound reading of tiled's base-clock drop.
 
+**Why the DRAM clock dips.** Single-launch `ncu` runs land at a lowered DRAM clock
+intermittently (6.99 to 7.47 GHz against 7.99 GHz), for either kernel and under both
+clock-control modes. Sampling `clocks.mem` every ~20 ms during a compare run showed the
+memory clock leaving idle (405 MHz, P8) through 7001 MHz (P3) to 8001 MHz (P0), then
+returning to 7001 MHz and back to 8001 MHz while the GPU stayed busy. 7001 MHz
+corresponds to 168 GB/s, the implied peak seen in the lowered-clock launches. **[V]**
+that the dips are real memory-clock states, not an accounting artifact. All six warm
+`bench_stream` launches ran at 7.99 GHz, but running `bench_stream` (about 2 s of load)
+immediately before the wrapper did not remove the dips: both kernels still read 6.99 GHz.
+Whether ncu's startup or replay passes lower the clock, or the clock fluctuates under
+short bursts, is **[U]**. The sampler is not synchronised with launches, so it cannot
+say which launch ran at which clock. Practical rule: quote bytes/time, or the DRAM %
+together with the clock row.
+
 Reproduce: `./build/bin/bench/bench_stream --warmup 10 --reps 100`; cross-check
 commands are in the header comment of `tests/perf/bench_stream.cu`.
 

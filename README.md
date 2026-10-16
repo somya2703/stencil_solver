@@ -42,6 +42,21 @@ Details, evidence tags (verified / derived / inferred / unverified) and the full
 prediction ledger, including the predictions that failed, are in
 [docs/CASE_STUDY.md](docs/CASE_STUDY.md).
 
+**What CI covers.** GitHub Actions runs the format check and the CPU-fallback build
+with its 70 unit tests. GPU tests, benchmarks and profiling run locally (no GPU runner);
+clang-tidy and coverage jobs are disabled until their findings are triaged.
+
+**Open items / next steps**
+
+- Run the same benchmarks on a datacenter-class GPU (A100 or L4). Whether the
+  tiled kernel wins there is untested; the design targeted that class.
+- Explain the two unresolved PENCIL_Z steps (16 to 20 and 28 to 32). Clocks,
+  occupancy, instruction count, DRAM bytes, spills, instruction cache and one
+  prefetch edit have been excluded.
+- Explain intermittent DRAM-clock dips in single-launch Nsight runs: they are real
+  memory-clock states (7001 vs 8001 MHz); a separate pre-warm did not remove them
+  (see `docs/CASE_STUDY.md` section 3.7).
+
 ---
 
 ## What's in this repo
