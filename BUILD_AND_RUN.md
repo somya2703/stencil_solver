@@ -98,7 +98,7 @@ cmake -B build -S . \
     -DSTENCIL_ENABLE_NVTX=ON \
     -DCMAKE_CUDA_ARCHITECTURES="89" \
     -DSTENCIL_TILE_Y=8 \
-    -DSTENCIL_PENCIL_Z=12
+    -DSTENCIL_PENCIL_Z=20
 ```
 
 **Expected output:**
@@ -114,7 +114,7 @@ cmake -B build -S . \
 ║  CUDA archs   : 89
 ║  Precision    : FP32
 ║  Tile Y       : 8
-║  Pencil Z     : 12
+║  Pencil Z     : 20
 ║  CPU fallback : OFF
 ║  MPI          : OFF
 ║  NCCL         : OFF
@@ -205,7 +205,7 @@ docker run --gpus all --rm -it \
 ```
 
 Inside the container, run Steps 3–5 above identically (including the
-`-DSTENCIL_TILE_Y=8 -DSTENCIL_PENCIL_Z=12` flags).
+`-DSTENCIL_TILE_Y=8 -DSTENCIL_PENCIL_Z=20` flags).
 
 > ⚠️ **Files created inside the container are root-owned on your
 > host.** By default `docker run` runs as root, so anything the
@@ -489,6 +489,11 @@ Results written to: results/bench_naive.json
 > figure is kept as `model_bandwidth_gbs` in the JSON. See `docs/CASE_STUDY.md`
 > section 3.3.
 
+> **Kernel versions.** The 6B and 6C blocks below were captured with the v2 tiled kernel
+> (commit 1e178db, `TILE_Y=8, PENCIL_Z=20`). The 5B block and the `0.71x`/`0.72x`
+> figures elsewhere in this guide are from the v1 kernel (`8/12`) and are kept as history;
+> see `docs/CASE_STUDY.md` section 3.8 for the comparison.
+
 ### 6B — Tiled benchmark (naive vs tiled comparison)
 
 ```bash
@@ -510,13 +515,13 @@ Steps  : 200  Warmup: 20
 
 Grid        Naive ms  Naive GB/s    Tiled ms  Tiled GB/s   Speedup
 --------  ----------  ----------  ----------  ----------  --------
-64           0.012 ms     237.2        0.025 ms     114.5       0.48×
-128          0.188 ms     147.0        0.224 ms     123.6       0.84×
-192          0.617 ms     161.4        0.734 ms     135.9       0.84×
-256          1.403 ms     173.9        1.802 ms     135.4       0.78×
-320          2.758 ms     176.2        3.541 ms     137.2       0.78×
-384          4.797 ms     177.3        6.723 ms     126.5       0.71×
-512         11.447 ms     178.9       15.982 ms     128.2       0.72×
+64           0.012 ms     234.3        0.024 ms     115.4       0.49×
+128          0.188 ms     147.0        0.193 ms     143.0       0.97×
+192          0.633 ms     157.4        0.623 ms     160.1       1.02×
+256          1.403 ms     174.0        1.482 ms     164.7       0.95×
+320          2.758 ms     176.2        3.149 ms     154.3       0.88×
+384          4.841 ms     175.7        5.600 ms     151.9       0.86×
+512         11.463 ms     178.7       13.116 ms     156.2       0.87×
 
 (The per-size "Summary" / "Tiled" tables printed below this one are omitted here.)
 
@@ -553,13 +558,13 @@ Radius    : 4  (8-th order)
 
 Grid         ms/step        GB/s     BW Eff.
 --------  ----------  ----------  ----------
-64           0.019 ms     146.2         76.1%
-96           0.058 ms     188.9         98.4%
-128          0.193 ms     143.5         74.8%
-192          0.736 ms     135.4         70.5%
-256          1.815 ms     134.5         70.0%
-384          6.713 ms     126.7         66.0%
-512         15.976 ms     128.2         66.8%
+64           0.020 ms     143.9         74.9%
+96           0.048 ms     227.8        118.7%
+128          0.173 ms     160.0         83.3%
+192          0.618 ms     161.2         84.0%
+256          1.489 ms     163.9         85.3%
+384          5.604 ms     151.8         79.0%
+512         13.144 ms     155.8         81.2%
 Scaling results written to: results/bench_scaling.json
 ```
 
@@ -613,7 +618,7 @@ number — e.g. "1.56×" — over a table where every row showed tiled
 slower) is **fixed** as of this repo's current `plot_results.py`. The
 per-row table and the "Average speedup" line at the bottom of
 `docs/BENCHMARKS.md` now agree: given the 6B data above, both describe
-tiled as roughly 0.72× of naive on average. If you ever see them
+tiled as roughly 0.80× of naive on average (v2 kernel). If you ever see them
 disagree again, check that `write_markdown_report()` reads
 `speedups.append(n_r["time_ms"] / t_r["time_ms"])`, not the reciprocal.
 
@@ -893,7 +898,7 @@ cmake -B build-mpi -S . \
     -DSTENCIL_ENABLE_NVTX=ON \
     -DCMAKE_CUDA_ARCHITECTURES="89" \
     -DSTENCIL_TILE_Y=8 \
-    -DSTENCIL_PENCIL_Z=12
+    -DSTENCIL_PENCIL_Z=20
 
 cmake --build build-mpi --parallel $(nproc)
 
@@ -983,7 +988,7 @@ chmod +x scripts/*.sh
 # Configure for this specific GPU, with tiled-kernel tuning
 cmake -B build -S . -DSTENCIL_BUILD_TESTS=ON \
     -DCMAKE_CUDA_ARCHITECTURES="89" \
-    -DSTENCIL_TILE_Y=8 -DSTENCIL_PENCIL_Z=12
+    -DSTENCIL_TILE_Y=8 -DSTENCIL_PENCIL_Z=20
 cmake --build build --parallel $(nproc)
 
 # Unit tests (expect 59/59)

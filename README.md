@@ -16,13 +16,15 @@ reservoir simulation, and power-grid transient solvers.
 ## Key findings (RTX 4050 Laptop GPU, Ada SM 8.9, CUDA 12.8)
 
 The expected result for this project was "shared-memory tiling beats the naive kernel."
-On this GPU it does not, and the investigation explains why.
+The first tiled kernel (v1) was 0.72x of naive on this GPU, and the investigation explains why.
+A redesign aimed at the diagnosed cause (v2, 32 x 8 blocks where every thread owns an output
+column) closes about half the gap but still does not beat naive at 512^3.
 
-| | Naive | Tiled (best config, TILE_Y=8, PENCIL_Z=12) |
+| | Naive | Tiled v2 (TILE_Y=8, PENCIL_Z=20) |
 |---|---|---|
-| Time per step, 512^3 | about 11.5 ms | about 16.0 ms (0.72x of naive) |
-| Effective bandwidth (compulsory traffic / time) | about 178 GB/s | about 128 GB/s |
-| DRAM read per step | 1.59 GB | 1.98 GB |
+| Time per step, 512^3 | about 11.5 ms | about 13.1 ms (0.87x of naive; v1 was 16.0 ms, 0.72x) |
+| Effective bandwidth (compulsory traffic / time) | about 178 GB/s | about 156 GB/s |
+| DRAM read per step | 1.59 GB | 1.98 GB for v1; not re-measured on v2 |
 
 - **Naive is already at the DRAM limit.** Nsight Compute reports about 96% of peak DRAM
   throughput, and its time is about 4.5% above the floor at theoretical peak (about 2% at
@@ -30,11 +32,16 @@ On this GPU it does not, and the investigation explains why.
   redundant reads cannot help much when L2 already absorbs them.
 - **The peak is independently checked.** A standalone read-only kernel reaches about
   188 GB/s (98% of the derived 192 GB/s peak).
-- **Tiling moves more DRAM bytes, not fewer**, and spends 33-51% of warp cycles at
+- **(v1) Tiling moves more DRAM bytes, not fewer**, and spends 33-51% of warp cycles at
   barriers (naive: 0%). Occupancy explains only part of the slowdown.
-- **Two kernel edits were tried and did not help:** replacing a redundant `p_cur`
+- **Two kernel edits to v1 were tried and did not help:** replacing a redundant `p_cur`
   reload was neutral, and prefetching `p_prev`/`vel2` before the barrier was about
   5% slower. Two performance steps in the PENCIL_Z sweep remain unexplained.
+- **v2 kernel (commit 1e178db):** dropping the halo-only threads (256 threads, none idle)
+  cut the 512^3 time from 16.0 to 13.7 ms in five alternating pairs, and PENCIL_Z=20 gives
+  13.1 ms. The two PENCIL_Z steps seen in v1 disappeared. At 192^3 tiled matches naive
+  (1.02x, single run); from 320^3 up naive wins again (0.86-0.88x). That the gain comes from
+  removing idle warps is inferred; v2 has not been profiled.
 - **Limits:** one GPU only (the tiled design targeted A100-class parts and has not
   been run on one); the multi-GPU path was never run.
 
@@ -164,7 +171,7 @@ Pencil:  PENCIL_Z + 2R = 20 live values in the sliding window at this
          total register count per thread is 48 (the pencil array isn't
          the only thing using registers) -- see docs/CASE_STUDY.md 3.2
 
-Measured Nsight Compute (512³, fp32, RTX 4050 Laptop GPU, TILE_Y=8,
+Measured Nsight Compute, v1 kernel (before commit 1e178db) (512³, fp32, RTX 4050 Laptop GPU, TILE_Y=8,
 PENCIL_Z=12 -- this repo's current default; see docs/CASE_STUDY.md 3.2):
   DRAM reads:          ~1.98 GB/step  (MORE than naive's ~1.59 GB, not
                        less -- see the note below)

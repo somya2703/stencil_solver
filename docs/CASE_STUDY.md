@@ -19,7 +19,7 @@ A counter-backed performance case study of `stencil-solver` (8th-order 3-D wave 
 
 ## 1. Summary
 
-1. **The naive kernel beats the tiled kernel at every grid size and every tile configuration tested.** With the guide's Step 3 build (`TILE_Y=4`, `PENCIL_Z=8`) tiled runs at 0.42–0.68× of naive (0.58× at 512³). The best tiled configuration found is `TILE_Y=8, PENCIL_Z=12` at about **0.71×**, confirmed in 5/5 back-to-back repeats against `8/16` (16.12 ms vs 17.02 ms, +5.6%). **[V]**
+1. **[v1 kernel; superseded by the v2 results in section 3.8]** **The naive kernel beats the tiled kernel at every grid size and every tile configuration tested.** With the guide's Step 3 build (`TILE_Y=4`, `PENCIL_Z=8`) tiled runs at 0.42–0.68× of naive (0.58× at 512³). The best tiled configuration found is `TILE_Y=8, PENCIL_Z=12` at about **0.71×**, confirmed in 5/5 back-to-back repeats against `8/16` (16.12 ms vs 17.02 ms, +5.6%). **[V]**
 2. **Naive is already at the practical DRAM limit.** It reads 1.59 GB and writes 0.517 GB per step, which is the compulsory traffic, and Nsight Compute reports 95.7% of peak DRAM throughput. The compulsory-traffic floor is 10.96 ms against 11.46 ms measured, so at most ~4.5% headroom exists. No kernel that only improves data reuse can meaningfully beat it, and the ~3.5× speedup described in the README was never available on this GPU. **[V/D]**
 3. **The DRAM peak is ~192 GB/s, not the 96 GB/s the code prints.** The bandwidth formula omits the DDR ×2 factor. The code's "effective GB/s" is a model number (analytic bytes ÷ time) that tracks L2 sector traffic, not DRAM. **[V/D]** *(Superseded by L1, commit b67dca6: the printed `bandwidth_gbs` now uses compulsory traffic, 4 x interior x 4 B per step; the old figure is `model_bandwidth_gbs`. This finding describes the earlier output.)*
 4. **Tiled kernels move more DRAM bytes than naive** (+12% to +38%), following `read ≈ 1.59 GB + 0.537 GB × 8/PENCIL_Z`. Three out-of-sample predictions of this model landed within 1.6%. **[V]**
@@ -69,7 +69,7 @@ Mean ratio 0.59×. A separate `bench_naive` run reproduced naive at 512³ (11.46
 
 A cold-process, short-warmup run (`--warmup 10`) measures naive 256³ at ~1.57 ms, up to 12% slower than the 1.40 ms steady state reached with `--warmup 300`. Cold-run timings are therefore not comparable with the benchmarks. **[V]**
 
-### 3.1b Naive vs tiled across grid sizes (best config, `8/12`)
+### 3.1b Naive vs tiled across grid sizes (v1 kernel, best config `8/12`)
 
 Same protocol as §3.1 (`bench_tiled`, 200 steps, 20 warmup, one run per size), built with
 `TILE_Y=8, PENCIL_Z=12`.
@@ -393,6 +393,37 @@ together with the clock row.
 
 Reproduce: `./build/bin/bench/bench_stream --warmup 10 --reps 100`; cross-check
 commands are in the header comment of `tests/perf/bench_stream.cu`.
+
+---
+
+### 3.8 Kernel v2: 32 x TILE_Y blocks, every thread owns an output column (commit 1e178db)
+
+Motivated by the diagnosed cause in sections 3.4-3.5: in v1, half the warps of a `40 x 16`
+block own no output cell and a 40-wide row straddles warps. v2 uses 32 x 8 = 256 threads, none
+idle, offsets the tile by R, and loads axis-aligned halo cells with the first R threads of each
+row and column (the star stencil never reads corners). Gate: 70 unit and 15 GPU tests pass.
+
+| Measurement (512^3) | v1 (`8/12`) | v2 |
+|---|---|---|
+| 5 alternating pairs, `8/12`, mean ms | 16.09 | 13.70 (-14.9%, every pair) |
+| Registers (`8/12`) | 48 | 48 |
+| Best PENCIL_Z, single run | 12 (16.03 ms) | 20 (13.24 ms); repeats: 20 = 13.12, 28 = 13.15, 12 = 13.71 (medians, n = 5, unpaired) |
+| `bench_tiled` at PZ=20, tiled / naive | 0.72x | 0.87x (13.116 / 11.463 ms) |
+
+v2 PENCIL_Z sweep, single runs, tiled ms: 8 = 14.88, 12 = 13.71, 16 = 13.78, 20 = 13.24,
+24 = 14.62, 28 = 13.25, 32 = 14.29; registers 40, 48, 48, 61, 58, 64, 79. **[V]**
+
+Size sweep at PZ=20 (single runs): 64^3 0.49x, 128^3 0.97x, 192^3 1.02x, 256^3 0.95x, 320^3 0.88x,
+384^3 0.86x, 512^3 0.87x. 1.02x is a tie within run-to-run noise. **[V]**
+
+- The v1 monotone slowdown with PENCIL_Z (16.0 to 30.0 ms) and its two steps (16 -> 20, 28 -> 32)
+  are gone: v2 stays within 13.2-14.9 ms. **[V]** That they were tied to the v1 block layout is
+  **[I]**, consistent with the halo-warp explanation but not proven: v2 has not been profiled.
+- The v2 curve is jagged (24 and 32 are slower than 20 and 28), which looks like register and
+  occupancy effects (58 to 79 registers); the default PZ=20 may not transfer to other GPUs. **[I]**
+- Naive is still faster at DRAM-bound sizes. It sits within about 2-5% of the traffic floor, so
+  0.87x is close to what this kernel family can reach on this GPU. **[I]**
+- Not yet measured for v2: DRAM bytes, barrier-stall share, per-line stalls.
 
 ---
 
