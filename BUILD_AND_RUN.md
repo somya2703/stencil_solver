@@ -404,27 +404,28 @@ TILE_Y=8/PENCIL_Z=12):**
 GPU [0]: NVIDIA GeForce RTX 4050 Laptop GPU
   Compute : 8.9    SMs: 20
   Memory  : 6.1 GB   Peak BW: 192.0 GB/s
-  SMEM/block (tiled): 2560 B
+  SMEM tile (tiled): 2560 B
 
 Stencil radius : 4  (8-th order)
-Tile dims      : 32 × 8  (SMEM block: 40 × 16)
-Z pencil depth : 12
+Thread block   : 32 × 8  (256 threads, one output column each)
+SMEM tile      : 40 × 16  (output tile + radius-4 halo)
+Z pencil depth : 20
 
 Grid        Naive ms   BW (GB/s)    Tiled ms   BW (GB/s)   Speedup
 --------  ----------  ----------  ----------  ----------  --------
-512         11.564 ms     177.1       15.972 ms     128.2       0.72×
+512         11.658 ms     175.7       13.391 ms     153.0       0.87×
 
 ── Naive ────────────────────────────────────────────────
 
 Kernel                          Grid     ms/step        GB/s       GFLOP/s
 --------------------------  --------  ----------  ----------  ------------
-  naive                        512³    11.564 ms     177.1          620.0
+  naive                        512³    11.658 ms     175.7          615.0
 
 ── Tiled ────────────────────────────────────────────────
 
 Kernel                          Grid     ms/step        GB/s       GFLOP/s
 --------------------------  --------  ----------  ----------  ------------
-  tiled                        512³    15.972 ms     128.2          448.9
+  tiled                        512³    13.391 ms     153.0          535.4
 ```
 
 **Tiled is slower than naive on this GPU — at this configuration
@@ -618,7 +619,7 @@ number — e.g. "1.56×" — over a table where every row showed tiled
 slower) is **fixed** as of this repo's current `plot_results.py`. The
 per-row table and the "Average speedup" line at the bottom of
 `docs/BENCHMARKS.md` now agree: given the 6B data above, both describe
-tiled as roughly 0.80× of naive on average (v2 kernel). If you ever see them
+tiled as roughly 0.86× of naive on average (v2 kernel). If you ever see them
 disagree again, check that `write_markdown_report()` reads
 `speedups.append(n_r["time_ms"] / t_r["time_ms"])`, not the reciprocal.
 
