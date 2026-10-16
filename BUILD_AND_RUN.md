@@ -428,15 +428,13 @@ Kernel                          Grid     ms/step        GB/s       GFLOP/s
   tiled                        512³    13.391 ms     153.0          535.4
 ```
 
-**Tiled is slower than naive on this GPU — at this configuration
-(this repo's current default, and the best found across the sweep in
-Section 8B), and at every other `TILE_Y`/`PENCIL_Z` combination
-tested.** This is a reproducible, counter-confirmed result, not a sign
-that something is misconfigured. Naive is already within ~4.5% of this
-GPU's practical DRAM-bandwidth floor, so no amount of tile tuning
-should be expected to make tiled win at this grid size and radius. For
-the counter-level explanation (barrier stalls, DRAM-traffic increase,
-where occupancy does and doesn't matter), see `docs/CASE_STUDY.md` §3.
+**Tiled (v2 kernel) is slower than naive at 512³ on this GPU: about 0.87×
+at this repo's default `TILE_Y=8, PENCIL_Z=20`.** At smaller grids it is close:
+0.97× at 128³ and 1.02× at 192³ (single runs, so 1.02× is a tie). The earlier
+v1 kernel was 0.72×; the redesign (32×8 blocks, every thread owns an output column)
+recovered about half the gap. Naive is within roughly 2-5% of this GPU's DRAM-bandwidth
+floor, so winning at DRAM-bound sizes is not expected. For the counter-level explanation
+and the v1-to-v2 comparison, see `docs/CASE_STUDY.md` §3 and §3.8.
 
 > **Memory ceiling on this card:** don't jump straight to 1024³ —
 > `1024³ × 4 bytes × 4 fields ≈ 17.2 GB`, which will not fit in 6.1 GB.
