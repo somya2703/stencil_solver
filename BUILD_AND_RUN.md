@@ -83,9 +83,10 @@ Compile only for Ada Lovelace (SM 8.9) instead of the default
 architecture list (`70;75;80;86;90`) to save build time.
 
 Also pass the tiled-kernel tuning knobs. The best configuration measured
-on this GPU is `TILE_Y=8, PENCIL_Z=12`: tiled runs at about 0.71x of naive
-at 512^3, so it is still *slower* than naive (see Section 5B and
-`docs/CASE_STUDY.md` section 3.2 for why). The previous recommendation of
+on this GPU is `TILE_Y=8, PENCIL_Z=20` (v2 kernel): tiled runs at about 0.87x of
+naive at 512^3, so it is still *slower* than naive (see Section 5B and
+`docs/CASE_STUDY.md` sections 3.2 and 3.8 for why). The v1 kernel's best was
+`8/12` at 0.71x. The previous recommendation of
 `TILE_Y=4, PENCIL_Z=8` measures worse (0.58x at 512^3), because a smaller
 `TILE_Y` shrinks the useful fraction of each block (Section 8B).
 `CMakeLists.txt` exposes the knobs:
@@ -942,7 +943,7 @@ for this guide; tracked separately.*
 | `CMake Error: The current CMakeCache.txt directory ... is different than the directory ... where CMakeCache.txt was created` | The same `build/` directory was configured from two different absolute paths — e.g. once inside the Docker container (mounted at `/workspace`) and once on the host (`/home/you/stencil_solver`). CMake caches absolute source/binary paths and refuses to reuse a mismatched cache | `rm -rf build` and reconfigure from scratch. Going forward, use separate build directories for Docker vs. host builds (e.g. `build-docker/` and `build/`) so their caches never collide |
 | `./scripts/*.sh: Permission denied` | Scripts aren't marked executable in a fresh checkout | `chmod +x scripts/*.sh`, or run via `bash scripts/foo.sh ...` |
 | `stencil_naive` prints three grid sizes and a summary table when you only wanted one | `--nx/--ny/--nz` all equal the default 256, so `main_naive.cpp` falls into its sweep branch | Pass a size that differs from 256 (e.g. `--nx 255`), or accept the sweep |
-| Tiled kernel benchmarks slower than naive across the board | This is the measured, reproducible result on this GPU class, confirmed across a wide `TILE_Y`/`PENCIL_Z` sweep — not a tuning mistake | See `docs/CASE_STUDY.md` for the full sweep and the counter-level cause (barrier stalls, extra DRAM traffic); the best configuration found so far is `TILE_Y=8, PENCIL_Z=12` (≈0.71×, still a loss) |
+| Tiled kernel benchmarks slower than naive across the board | This is the measured, reproducible result on this GPU class, confirmed across a wide `TILE_Y`/`PENCIL_Z` sweep — not a tuning mistake | See `docs/CASE_STUDY.md` for the full sweep and the counter-level cause (barrier stalls, extra DRAM traffic); with the v2 kernel the default `TILE_Y=8, PENCIL_Z=20` reaches ≈0.87× at 512³ (v1 was ≈0.71×), still a loss at DRAM-bound sizes |
 | Device banner prints `Peak bandwidth: 96.0 GB/s` | The `memoryClockRate * memoryBusWidth / 8` formula in `src/main_*.cpp` and `tests/perf/bench_*.cpp` omits GDDR's ×2 DDR transfer factor | Fixed in the current repo (look for a commit titled "Fix peak DRAM bandwidth..."); expect `192.0 GB/s` after rebuilding. If you still see `96.0`, you're on an older commit or a stale build directory |
 | `docs/BENCHMARKS.md` "Average speedup" doesn't match the per-row table's sign | `write_markdown_report()` in `plot_results.py` averaged `tiled/naive` instead of `naive/tiled` | Fixed in the current repo; if you still see this, check `scripts/plot_results.py` for `speedups.append(n_r["time_ms"] / t_r["time_ms"])` |
 | A multi-size sweep's "Summary" table used to show a Speedup column like `1.00×, 0.12×, 0.02×` | `format_perf_table()` compared every row to row 0 regardless of grid size | Fixed (checklist M1): the tables now carry a Grid column and no cross-size Speedup | Rebuild from the current repo |
