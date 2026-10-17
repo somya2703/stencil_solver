@@ -534,12 +534,12 @@ Recorded so the trail is auditable:
 | R1 | Peak-bandwidth formula lacks the DDR ×2 factor (`bench_naive`, `main_naive`, `bench_scaling`); prints 96 instead of ~192 GB/s | Nsight DRAM % vs bytes÷time | V |
 | R2 | "Effective GB/s" and `BW Eff.` are model numbers (≈ L2 traffic), not DRAM; the roofline plot draws points 7–17× above the memory roof | §3.3; plot screenshot | V |
 | R2 fix | L1 (b67dca6): bandwidth uses compulsory bytes, roofline AI is 3.5 FLOP/B; at 512^3 naive reads about 178 GB/s and `BW Eff.` for tiled about 67% | bench output | V |
-| R3 | `format_perf_table(results, 0)` is called on a list of different grid sizes (`bench_tiled`, `main_tiled`, `main_naive` sweep), so the Speedup column compares every size against 64³ (0.06×, 0.02×, 0.00×) and rows carry no grid label | Program output | V |
-| R4 | Benchmark JSON records GPU, CUDA version, radius and precision but not `TILE_Y`, `PENCIL_Z`, steps or warmup, so results cannot be attributed to a config | `head -12 results/bench_tiled.json` | V |
-| R5 | `plot_scaling` never calls `savefig`; the report hardcodes a link to `plots/scaling.png`, which is never created | `grep savefig`; `ls docs/plots` | V |
-| R6 | `ny`/`nz` are overwritten by `nx` in every main, so non-cubic grids cannot be run. Sweep trigger differs: `main_naive` sweeps only when all of nx/ny/nz are 256, the other binaries when `nx == 256`. | Output of `--nx 256` vs `--nx 256 --ny 256 --nz 257` | V |
-| R7 | `clang-format` and `clang-tidy` have no leading dot, so the tools never auto-discover them | `ls -a`, `git ls-files` | V |
-| R8 | Workflows sit in `infra/.github/workflows/`; GitHub only reads root `.github/workflows/` | `git ls-files` | V |
+| R3 | `format_perf_table(results, 0)` is called on a list of different grid sizes (`bench_tiled`, `main_tiled`, `main_naive` sweep), so the Speedup column compares every size against 64³ (0.06×, 0.02×, 0.00×) and rows carry no grid label. **Fixed (M1):** the table has a Grid column and no Speedup column | Program output | V |
+| R4 | Benchmark JSON records GPU, CUDA version, radius and precision but not `TILE_Y`, `PENCIL_Z`, steps or warmup, so results cannot be attributed to a config. **Fixed (M2):** the JSON now records tile_x/tile_y/pencil_z, steps and warmup (`tests/unit/test_io.cpp`) | `head -12 results/bench_tiled.json` | V |
+| R5 | `plot_scaling` never calls `savefig`; the report hardcodes a link to `plots/scaling.png`, which is never created. **Fixed:** `plot_scaling` now saves it (skipped when there are no weak/strong entries) and the report links it only if it exists | `grep savefig`; `ls docs/plots` | V |
+| R6 | **Partly fixed (M4):** `parse_args` now rejects an explicit `--ny`/`--nz` that disagrees with `--nx`; the sweep-trigger difference remains. Original finding: `ny`/`nz` are overwritten by `nx` in every main, so non-cubic grids cannot be run. Sweep trigger differs: `main_naive` sweeps only when all of nx/ny/nz are 256, the other binaries when `nx == 256`. | Output of `--nx 256` vs `--nx 256 --ny 256 --nz 257` | V |
+| R7 | `clang-format` and `clang-tidy` have no leading dot, so the tools never auto-discover them. **Fixed:** the files are now `.clang-format` and `.clang-tidy` | `ls -a`, `git ls-files` | V |
+| R8 | Workflows sit in `infra/.github/workflows/`; GitHub only reads root `.github/workflows/`. **Fixed:** they now live there | `git ls-files` | V |
 | R9 | `CMakeLists.txt.patch` is still tracked (an earlier commit claims leftovers were removed); `PERFORMANCE_ANALYSIS.md`, `tuning_results/` and the guide copy are untracked | `git status` | V |
 | R10 | Root-owned `build-tuned/` and `docs/plots/` (a container wrote into the bind-mounted tree). `plot_results.py` failed with `PermissionError` until `docs/plots` was re-owned. | `find -user root`; traceback | V |
 | R11 | `nvtx3/nvtx3.hpp` was found on CUDA 12.8; the missing-header problem (A.6) is toolkit-dependent | Clean configure and build | V |
@@ -555,8 +555,8 @@ These come from reading a snapshot of `main_multigpu.cpp`, `nccl_exchange.cpp` a
 2. Each rank builds its own Gaussian at the centre of its local slab, so N ranks produce N pulses instead of one global pulse.
 3. No halo exchange occurs before the first step.
 4. `ncclCommInitAll` is a single-process API; under `mpirun` it would create a private clique per process (`ncclGetUniqueId` + `ncclCommInitRank` is the multi-process route).
-5. `merge_scaling.py`'s docstring claims the strong-scaling formula but the code computes `t1/tN` for both modes.
-6. `run_scaling.sh` ends by suggesting `--scaling <directory>`, while `plot_results.py` needs a JSON file.
+5. `merge_scaling.py`'s docstring claims the strong-scaling formula but the code computes `t1/tN` for both modes. **Fixed in code:** strong scaling now divides by N.
+6. `run_scaling.sh` ends by suggesting `--scaling <directory>`, while `plot_results.py` needs a JSON file. **Fixed:** the script now prints the merge step and the combined JSON path.
 
 Each can be checked with a `grep` or a short run; see the reproduction appendix.
 
@@ -568,11 +568,11 @@ Each can be checked with a `grep` or a short run; see the reproduction appendix.
 
 | Idea | Basis |
 |---|---|
-| Set defaults to `TILE_Y=8, PENCIL_Z=12` | Measured best (§3.2) |
-| Use `pencil[R]` instead of reloading `p_cur[c]` | R12 |
-| Prefetch `p_prev`/`vel2` for the next iteration before the first barrier | R12; barrier and long-scoreboard stalls |
+| Set defaults to `TILE_Y=8, PENCIL_Z=12` | Measured best for v1 (§3.2). Done: defaults are now 8/20 for v2 (§3.8) |
+| Use `pencil[R]` instead of reloading `p_cur[c]` | R12. Done (commit ea0662e), neutral (§3.6) |
+| Prefetch `p_prev`/`vel2` for the next iteration before the first barrier | R12; barrier and long-scoreboard stalls. Tried on v1: 5% slower, reverted (§3.6) |
 | Remove the dead refill load (`pencil[PZ+2R-1]`, never read) | 24–27% of global-load instructions; small effect expected |
-| Make the block width a multiple of 32 and shrink halo-only warps | Uncoalescing rule (≥ 21%), barrier rule (14–34%), warp-geometry table |
+| Make the block width a multiple of 32 and shrink halo-only warps (done in v2, §3.8) | Uncoalescing rule (≥ 21%), barrier rule (14–34%), warp-geometry table |
 
 **Beating the floor requires fewer bytes, not more reuse.** Ideas, none tested: skip the `vel2` read for homogeneous media (−0.51 GB/step, ≈ 8.3 ms floor at 192.2 GB/s, arithmetic only [D]), reduced-precision field storage, temporal blocking. Each changes the algorithm or accuracy and would need its own validation.
 
@@ -597,7 +597,7 @@ percentage is normalised to.
 ## Appendix A. Reproduction
 
 ```bash
-# Build (guide Step 3), then tests
+# Build (guide Step 3 as it stood for the v1 measurements, TILE_Y=4/PENCIL_Z=8; Step 3 now builds 8/20), then tests
 mv build build-prev
 cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DSTENCIL_BUILD_TESTS=ON -DSTENCIL_BUILD_BENCHMARKS=ON \
       -DSTENCIL_ENABLE_NVTX=ON -DCMAKE_CUDA_ARCHITECTURES="89" -DSTENCIL_TILE_Y=4 -DSTENCIL_PENCIL_Z=8

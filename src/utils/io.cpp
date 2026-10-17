@@ -14,7 +14,7 @@
  *   "precision":      "fp32",
  *   "tile_x":         32,
  *   "tile_y":         8,
- *   "pencil_z":       12,
+ *   "pencil_z": 20,
  *   "steps":          200,
  *   "warmup":         20,
  *   "results": [
@@ -23,6 +23,7 @@
  *       "grid_size":     256,
  *       "time_ms":       3.14,
  *       "bandwidth_gbs": 412.5,
+ *       "model_bandwidth_gbs": 4400.0,
  *       "gflops":        198.3
  *     }, ...
  *   ]

@@ -97,4 +97,16 @@ endif()
 endif()  # NOT STENCIL_CPU_FALLBACK
 
 # ── Install ───────────────────────────────────────────────────────────────────
-install(TARGETS stencil_naive stencil_tiled DESTINATION bin)
+# ── Slice dumper (visualisation: writes the middle XY plane every N steps) ────
+add_executable(stencil_slice
+  main_slice.cpp
+  $<TARGET_OBJECTS:kernels_naive>
+  $<TARGET_OBJECTS:kernels_tiled>
+)
+target_link_libraries(stencil_slice PRIVATE stencil_utils stencil_common)
+set_target_properties(stencil_slice PROPERTIES
+  CUDA_SEPARABLE_COMPILATION ON
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+)
+
+install(TARGETS stencil_naive stencil_tiled stencil_slice DESTINATION bin)

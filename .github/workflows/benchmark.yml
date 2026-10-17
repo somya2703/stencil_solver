@@ -50,6 +50,7 @@ jobs:
 
       - name: Run naive benchmark
         run: |
+          mkdir -p results
           ./build-bench/bin/bench/bench_naive \
             --nx ${{ github.event.inputs.grid_size || '512' }} \
             --ny ${{ github.event.inputs.grid_size || '512' }} \

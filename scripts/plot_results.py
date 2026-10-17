@@ -123,6 +123,18 @@ def plot_scaling(data: dict, outdir: pathlib.Path) -> None:
         ax.legend()
         ax.grid(alpha=0.3)
 
+    if not any(r.get("mode") in ("weak", "strong") for r in data.get("results", [])):
+        plt.close(fig)
+        print("Warning: no weak/strong scaling entries -- skipping scaling plot")
+        return
+
+    plt.tight_layout()
+    out = outdir / "scaling.png"
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved: {out}")
+
+
 def plot_roofline(naive: dict, tiled: dict, peak_bw: float, peak_flops_tflops: float,
                    outdir: pathlib.Path) -> None:
     """Roofline chart: memory-bound ceiling vs compute-bound ceiling,

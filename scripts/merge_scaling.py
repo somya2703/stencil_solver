@@ -63,25 +63,24 @@ def infer_mode(filename: str) -> Optional[str]:
     return None
 
 
-def compute_efficiency(runs: list[dict]) -> list[dict]:
+def compute_efficiency(runs: list[dict], mode: str) -> list[dict]:
     """
-    Set efficiency = time_1gpu / (ngpu × time_Ngpu) for each entry.
-    For weak scaling:   ideal is constant time → efficiency = time_1 / time_N
-    For strong scaling: ideal is linear speedup → efficiency = time_1 / (N × time_N)
-    We use the strong-scaling formula for both (it's the standard definition).
+    Set efficiency relative to the smallest-GPU-count run (normally 1 GPU).
+    Weak scaling:   ideal is constant time      -> efficiency = t_base / t_N
+    Strong scaling: ideal is linear speedup     -> efficiency = t_base / (scale * t_N)
+                    where scale = ngpu / base_ngpu
     """
     if not runs:
         return runs
-    # Sort by ngpu
     runs = sorted(runs, key=lambda r: r["ngpu"])
     baseline_ms = runs[0]["time_ms"]
     baseline_ngpu = runs[0]["ngpu"]
     for r in runs:
         if r["time_ms"] > 0 and baseline_ms > 0:
-            # Speedup relative to baseline (usually 1 GPU)
-            speedup = baseline_ms / r["time_ms"] * (r["ngpu"] / baseline_ngpu)
-            r["efficiency"] = round(speedup / (r["ngpu"] / baseline_ngpu), 4) \
-                if r["ngpu"] != baseline_ngpu else 1.0
+            eff = baseline_ms / r["time_ms"]
+            if mode == "strong":
+                eff /= r["ngpu"] / baseline_ngpu
+            r["efficiency"] = round(eff, 4)
         else:
             r["efficiency"] = 0.0
     return runs
@@ -139,8 +138,8 @@ def main() -> None:
         sys.exit(1)
 
     # Compute efficiency relative to 1-GPU baseline
-    weak_runs   = compute_efficiency(weak_runs)
-    strong_runs = compute_efficiency(strong_runs)
+    weak_runs   = compute_efficiency(weak_runs, "weak")
+    strong_runs = compute_efficiency(strong_runs, "strong")
 
     combined = {"results": weak_runs + strong_runs}
 

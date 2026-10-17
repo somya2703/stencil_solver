@@ -99,7 +99,6 @@ jobs:
             -DSTENCIL_ENABLE_MPI=OFF \
             -DSTENCIL_ENABLE_NCCL=OFF \
             -DSTENCIL_ENABLE_NVTX=OFF \
-            -DSTENCIL_ENABLE_NVTX=OFF \
             -DCMAKE_CUDA_ARCHITECTURES="70;80;86" \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CUDA_COMPILER_LAUNCHER=ccache

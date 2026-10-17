@@ -57,4 +57,5 @@ fi
 
 echo ""
 echo "Results written to: $OUTDIR/"
-echo "Plot with: python3 scripts/plot_results.py --scaling $OUTDIR/"
+echo "Merge: python3 scripts/merge_scaling.py --indir $OUTDIR --output $OUTDIR/scaling_combined.json"
+echo "Plot:  python3 scripts/plot_results.py --scaling $OUTDIR/scaling_combined.json"

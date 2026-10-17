@@ -13,6 +13,51 @@ is implemented but has not been run or validated (see `docs/CASE_STUDY.md` secti
 This is the exact computational pattern underlying seismic RTM/FWI,
 reservoir simulation, and power-grid transient solvers.
 
+## TL;DR
+
+**What this is.** A GPU program that simulates a wave (or heat) spreading through a 3D block
+of space. I built it to test a famous GPU speed-up trick, *shared-memory tiling*, and measure
+whether it really helps.
+
+**What I found.** On my laptop GPU it does not. The simple version already uses about 96% of
+the memory bandwidth, so there is almost nothing left to win. My first tiled version was
+28% slower than the simple one; after a redesign it is about 12.5% slower (0.875x). Every claim is
+backed by hardware counters, and the 15 predictions I got wrong are listed next to the 24 I
+got right.
+Measured over 10 back-to-back naive/tiled pairs in one session at 512³: tiled runs at **0.875×** of naive (sd 0.001, 95% CI 0.874–0.876; naive 11.49 ms, tiled 13.13 ms).
+
+![A pulse spreading through the middle slice of the 3D grid and reflecting off the walls](docs/media/wave_slice.gif)
+
+*The simulation itself: a pressure pulse starts in the centre, spreads outward, bounces off the
+fixed walls and refocuses in the corners. Made on the GPU with `stencil_slice` and `scripts/make_slice_gif.py`; `scripts/reference_slice.py` (NumPy) writes the same files if you have no GPU.*
+
+![Tiled speed relative to naive, by grid size](docs/plots/tiled_vs_naive_by_grid.png)
+
+Three things to take away:
+
+1. **Naive was already near the limit.** It sits about 4.5% above the memory-bandwidth floor,
+   so "reduce memory traffic" had little to give.
+   ![Time per step vs the DRAM floor](docs/plots/kernel_time_vs_floor.png)
+2. **Tiling added waiting, not speed.** Threads spent up to half their time stalled at
+   synchronisation barriers; the v2 redesign cut that to about 20% and recovered half the gap.
+   ![Where warps wait](docs/plots/stall_breakdown.png)
+3. **The method matters more than the number.** Predictions were written down before each run,
+   and the ones that failed are kept in the record.
+   ![Prediction ledger](docs/plots/prediction_ledger.png)
+
+Where to go next: [docs/CASE_STUDY.md](docs/CASE_STUDY.md) (the evidence),
+[BUILD_AND_RUN.md](BUILD_AND_RUN.md) (run it yourself), [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
+(the benchmark table).
+
+```bash
+# Re-create the animation and charts (no GPU needed)
+python3 scripts/reference_slice.py --out results/wave
+python3 scripts/make_slice_gif.py --prefix results/wave --out docs/media/wave_slice.gif
+python3 scripts/make_story_plots.py --outdir docs/plots
+```
+
+---
+
 ## Key findings (RTX 4050 Laptop GPU, Ada SM 8.9, CUDA 12.8)
 
 The expected result for this project was "shared-memory tiling beats the naive kernel."
@@ -24,7 +69,7 @@ column) closes about half the gap but still does not beat naive at 512^3.
 |---|---|---|
 | Time per step, 512^3 | about 11.5 ms | about 13.1 ms (0.87x of naive; v1 was 16.0 ms, 0.72x) |
 | Effective bandwidth (compulsory traffic / time) | about 178 GB/s | about 156 GB/s |
-| DRAM read per step | 1.59 GB | 1.98 GB for v1; not re-measured on v2 |
+| DRAM read per step | 1.59 GB | 1.82 GB for v2 (v1: 1.98 GB) |
 
 - **Naive is already at the DRAM limit.** Nsight Compute reports about 96% of peak DRAM
   throughput, and its time is about 4.5% above the floor at theoretical peak (about 2% at
@@ -36,12 +81,14 @@ column) closes about half the gap but still does not beat naive at 512^3.
   barriers (naive: 0%). Occupancy explains only part of the slowdown.
 - **Two kernel edits to v1 were tried and did not help:** replacing a redundant `p_cur`
   reload was neutral, and prefetching `p_prev`/`vel2` before the barrier was about
-  5% slower. Two performance steps in the PENCIL_Z sweep remain unexplained.
+  5% slower. The two v1 performance steps in the PENCIL_Z sweep were never explained (they are
+  absent in v2).
 - **v2 kernel (commit 1e178db):** dropping the halo-only threads (256 threads, none idle)
   cut the 512^3 time from 16.0 to 13.7 ms in five alternating pairs, and PENCIL_Z=20 gives
   13.1 ms. The two PENCIL_Z steps seen in v1 disappeared. At 192^3 tiled matches naive
   (1.02x, single run); from 320^3 up naive wins again (0.86-0.88x). That the gain comes from
-  removing idle warps is inferred; v2 has not been profiled.
+  removing idle warps is inferred; the one v2 counter capture is consistent with it
+  (barrier stalls 47% to 20%, warp instructions 1.26 B to 0.88 B; see CASE_STUDY section 3.8).
 - **Limits:** one GPU only (the tiled design targeted A100-class parts and has not
   been run on one); the multi-GPU path was never run.
 
@@ -57,9 +104,10 @@ clang-tidy and coverage jobs are disabled until their findings are triaged.
 
 - Run the same benchmarks on a datacenter-class GPU (A100 or L4). Whether the
   tiled kernel wins there is untested; the design targeted that class.
-- Explain the two unresolved PENCIL_Z steps (16 to 20 and 28 to 32). Clocks,
-  occupancy, instruction count, DRAM bytes, spills, instruction cache and one
-  prefetch edit have been excluded.
+- Explain the two v1 PENCIL_Z steps (16 to 20 and 28 to 32). They are absent in the v2
+  kernel, so they look tied to the v1 block layout (inferred, not proven). For v1, clocks,
+  occupancy, instruction count, DRAM bytes, spills, instruction cache and one prefetch
+  edit were excluded.
 - Explain intermittent DRAM-clock dips in single-launch Nsight runs: they are real
   memory-clock states (7001 vs 8001 MHz); a separate pre-warm did not remove them
   (see `docs/CASE_STUDY.md` section 3.7).
@@ -73,11 +121,17 @@ clang-tidy and coverage jobs are disabled until their findings are triaged.
 | `stencil_naive` | Baseline global-memory kernel — Nsight "before" target |
 | `stencil_tiled` | Shared-memory tiled kernel — Nsight "after" target |
 | `stencil_multigpu` | MPI + NCCL domain-decomposed solver (implemented, **not validated**) |
+| `stencil_slice` | Writes the middle slice of the field every N steps, for animations |
 | `bench_naive/tiled/scaling` | Benchmark executables with JSON output |
+| `bench_stream` | Standalone STREAM-style DRAM bandwidth test (independent check of the ~192 GB/s peak) |
 | `scripts/profile_nsight.sh` | Nsight Compute + Systems wrapper with compare mode |
+| `scripts/repeat_bench.py` | Repeats naive-vs-tiled N times; mean, sd and 95% CI |
+| `scripts/make_story_plots.py` | The four README charts, regenerated from the measured numbers |
+| `scripts/reference_slice.py`, `scripts/make_slice_gif.py` | NumPy reference and GIF maker for the animation |
 | `scripts/plot_results.py` | Roofline, throughput, speedup, scaling charts |
 | `docs/BENCHMARKS.md` | Naive-vs-tiled benchmark table and plots (RTX 4050 Laptop) |
 | `docs/CASE_STUDY.md` | Counter-backed investigation of why tiling loses on this GPU |
+| `BUILD_AND_RUN.md` | Step-by-step build/run guide with measured output for every command |
 | `docs/nsight_workflow.md` | Step-by-step Nsight profiling guide |
 
 ---
@@ -164,7 +218,7 @@ from a per-thread register pencil. The design intent is a single global
 memory load per cell; measured DRAM reads are higher (see below).
 
 ```
-Block:   SMEM_X × SMEM_Y = 40 × 16 = 640 threads
+Block:   TILE_X × TILE_Y = 32 × 8 = 256 threads (v2; v1 used 40 × 16 = 640)
 SMEM:    40 × 16 × 4 B = 2,560 B per block
 Pencil:  PENCIL_Z + 2R live values in the sliding window (v1 numbers
          below: PENCIL_Z=12, 48 registers per thread; the v2 default is
@@ -191,7 +245,7 @@ Arithmetic intensity = 56 FLOP / 16 bytes = 3.5 FLOP/byte (R=4, fp32, compulsory
 
 (Bytes are the compulsory traffic per point, 4 x 4 B; the earlier
 no-reuse figure, 112 B, is kept as `model_bandwidth_gbs`. See
-docs/BUILD_AND_RUN.md section 6C.)
+BUILD_AND_RUN.md section 6C.)
 
 At AI = 3.5 FLOP/byte the kernel is deep in the memory-bound regime on
 any GPU. The tiled kernel was designed for datacenter-class hardware (A100) on
@@ -201,8 +255,9 @@ reference hardware (RTX 4050 Laptop, Ada Lovelace) it does not hold**: tiled rea
 DRAM than naive at every configuration tested, and naive is already
 near this GPU's practical DRAM-bandwidth ceiling. The measured
 slowdown comes with high barrier-stall fractions (33-51% of warp cycles,
-naive: 0%) and 1.6-2.4x the warp instructions; attributing it to
-halo-only warps is inferred, not tested by changing the kernel. See
+naive: 0%) and 1.6-2.4x the warp instructions; attributing it to halo-only warps was inferred for v1, and the v2 redesign that removed
+them recovered about half the gap (barrier stalls 47% to 20%), which supports but does
+not prove it. See
 `docs/CASE_STUDY.md` for the full counter-backed investigation,
 including which candidate explanations hold up and which don't.
 
@@ -289,6 +344,8 @@ MPI_Sendrecv (multi-node, host-staged or CUDA-aware).
 | `STENCIL_ENABLE_NVTX` | `ON` | NVTX range markers for Nsight |
 | `STENCIL_CPU_FALLBACK` | `OFF` | OpenMP fallback (no GPU needed) |
 | `STENCIL_FP64` | `OFF` | Double precision (default: fp32) |
+| `STENCIL_TILE_Y` | `8` | Tiled kernel block height (block is 32 × TILE_Y) |
+| `STENCIL_PENCIL_Z` | `20` | Tiled kernel register Z-pencil depth |
 | `STENCIL_ENABLE_COVERAGE` | `OFF` | gcov/lcov coverage |
 | `CMAKE_CUDA_ARCHITECTURES` | `70;75;80;86;90` | Target SM arches. For a single local GPU, `-DCMAKE_CUDA_ARCHITECTURES=native` (CMake ≥ 3.24) builds only for it and is much faster |
 
@@ -296,17 +353,17 @@ MPI_Sendrecv (multi-node, host-staged or CUDA-aware).
 
 ## CI
 
-Every push runs:
+`.github/workflows/ci.yml` runs on every push and PR:
 1. `clang-format` check
 2. CPU-fallback build (no GPU required)
 3. Unit tests via CTest (`--label-regex unit`)
-4. `clang-tidy` static analysis (on `main`)
-5. Coverage report → Codecov (on `main`)
 
-GPU integration tests run on `[self-hosted, gpu, cuda]` runners
-for PRs targeting `main`.
+Switched off for now (`if: false` in `ci.yml`): GPU integration tests (no self-hosted GPU
+runner is registered), the Codecov coverage upload, and `clang-tidy`. GPU tests,
+benchmarks and profiling are run locally.
 
-Benchmarks run on release tags and post results as job summaries.
+`benchmark.yml` (manual, or on `v*` tags) and `release.yml` (on version tags) also need a
+`[self-hosted, gpu, cuda]` runner, so they will not run until one is registered.
 
 ---
 
@@ -319,15 +376,18 @@ stencil-solver/
 │   ├── solver/          solver_base, wave_prop, heat_diffusion
 │   ├── comm/            nccl_exchange, mpi_halo
 │   ├── utils/           grid, timer, io
-│   └── main_{naive,tiled,multigpu}.cpp
+│   └── main_{naive,tiled,multigpu,slice}.cpp
 ├── include/stencil/     types, config, grid, timer, kernels, solver, comm, io
 ├── tests/
-│   ├── unit/            test_fd_coeffs, test_grid, test_timer, test_solver*
+│   ├── unit/            test_fd_coeffs, test_grid, test_timer, test_io, test_solver*
 │   ├── integration/     test_wave_3d, test_heat_3d, test_kernel_correctness
-│   └── perf/            bench_naive, bench_tiled, bench_scaling
-├── docs/                BENCHMARKS.md, nsight_workflow.md
+│   └── perf/            bench_naive, bench_tiled, bench_scaling, bench_stream
+
+├── docs/                BENCHMARKS.md, CASE_STUDY.md, nsight_workflow.md,
+│                        PERFORMANCE_ANALYSIS.md (superseded)
 ├── scripts/             profile_nsight.sh, run_scaling.sh, plot_results.py,
-│                        merge_scaling.py, summarize_results.py, format.sh
+│                        merge_scaling.py, summarize_results.py, format.sh, repeat_bench.py,
+│                        make_story_plots.py, reference_slice.py, make_slice_gif.py
 ├── infra/docker/        Dockerfile.dev, Dockerfile.ci, docker-compose.yml
 ├── cmake/               FindNCCL.cmake, CUDAArchUtils.cmake
 └── .github/workflows/   ci.yml, benchmark.yml, release.yml

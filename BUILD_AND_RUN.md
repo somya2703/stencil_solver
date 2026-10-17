@@ -87,7 +87,7 @@ on this GPU is `TILE_Y=8, PENCIL_Z=20` (v2 kernel): tiled runs at about 0.87x of
 naive at 512^3, so it is still *slower* than naive (see Section 5B and
 `docs/CASE_STUDY.md` sections 3.2 and 3.8 for why). The v1 kernel's best was
 `8/12` at 0.71x. The previous recommendation of
-`TILE_Y=4, PENCIL_Z=8` measures worse (0.58x at 512^3), because a smaller
+`TILE_Y=4, PENCIL_Z=8` measured worse on the v1 kernel (0.58x at 512^3), because a smaller
 `TILE_Y` shrinks the useful fraction of each block (Section 8B).
 `CMakeLists.txt` exposes the knobs:
 
@@ -181,7 +181,8 @@ build/
 │   └── bench/
 │       ├── bench_naive
 │       ├── bench_tiled
-│       └── bench_scaling
+│       ├── bench_scaling
+│       └── bench_stream
 ```
 
 ### Step 5 — Make the helper scripts executable
@@ -268,15 +269,15 @@ ctest --test-dir build \
 Test project .../build
     Start  1: test_fd_coeffs.FDCoeffs.ConsistencyRadius1
     ...
-100% tests passed, 0 tests failed out of 59
+100% tests passed, 0 tests failed out of 70
 Total Test time (real) = 3–6 sec
 ```
 
-(59 is the correct count across `test_fd_coeffs`, `test_grid`,
-`test_timer`, `test_solver_cpu`, `test_solver`, and `test_kernels` —
-matching the repo's own initial-commit message. If your run reports a
-different total, it usually means one of these files wasn't compiled
-into the `unit`-labeled targets in `tests/CMakeLists.txt`.)
+(70 is the correct count across `test_fd_coeffs`, `test_grid`, `test_timer`,
+`test_io`, `test_solver_cpu`, `test_solver`, and `test_kernels`, the same total the
+README and `docs/CASE_STUDY.md` report. If your run reports a different total, it
+usually means one of these files wasn't compiled into the `unit`-labeled targets in
+`tests/CMakeLists.txt`. Count them with `ctest --test-dir build -N -L unit | tail -1`.)
 
 Unit tests use grid sizes ≤ 32³ — negligible on any GPU.
 
@@ -293,15 +294,15 @@ ctest --test-dir build \
 
 **Expected output:**
 ```
-    Start 60: test_wave_3d.WaveSolver3DTest.EnergyDoesNotGrow
+    Start 71: test_wave_3d.WaveSolver3DTest.EnergyDoesNotGrow
     ...
-    Start 74: test_kernel_correctness.KernelCorrectness.LinearFieldZeroLaplacian
+    Start 85: test_kernel_correctness.KernelCorrectness.LinearFieldZeroLaplacian
 
 100% tests passed, 0 tests failed out of 15
 Total Test time (real) = 1–3 sec
 ```
 
-(IDs 60–74 follow directly from Section 3's 59 unit tests — CTest
+(IDs 71–85 follow directly from Section 3's 70 unit tests — CTest
 numbers every test in the project sequentially, regardless of label.
 Measured real time on the reference hardware was ~2 sec; the earlier
 "30–60 sec" estimate was too pessimistic for grids this small.)
@@ -364,14 +365,10 @@ Grid: 255³   steps: 100   warmup: 10
 
 `--warmup 10` is short: a cold process or one following a smaller run
 can read up to ~12% slower here than the steady state reached with a
-longer warmup (e.g. `--warmup 300`). Treat single-digit-warmup timings
-as approximate; Section 6's benchmarks use `--warmup 20` over 200
+longer warmup (e.g. `--warmup 300`). Use `--warmup 100` or more for steady-state numbers (256³: ~1.57 ms at warmup 10 vs
+1.40 ms at warmup 300); the command above keeps `--warmup 10` only so the output
+matches the block shown. Treat single-digit-warmup timings as approximate; Section 6's benchmarks use `--warmup 20` over 200
 timed steps and are the more reliable figures for comparison.
-
-**Use `--warmup 100` or more for steady-state numbers.** A cold process
-with `--warmup 10` can read up to ~12% slower than the steady state
-(256³: ~1.57 ms at warmup 10 vs 1.40 ms at warmup 300). The command above
-keeps `--warmup 10` only so the output matches the block shown.
 
 If you *do* want the 128³/256³/512³ sweep on purpose, just omit
 `--nx/--ny/--nz` entirely (or set exactly 256/256/256), and expect
@@ -397,8 +394,8 @@ large runs.
     --steps 200 --warmup 20
 ```
 
-**Measured output (reference hardware, this repo's current default,
-TILE_Y=8/PENCIL_Z=12):**
+**Measured output (reference hardware, v2 kernel, this repo's current default,
+TILE_Y=8/PENCIL_Z=20):**
 ```
 === stencil-solver: naive vs tiled comparison ===
 
@@ -489,8 +486,8 @@ Results written to: results/bench_naive.json
 > figure is kept as `model_bandwidth_gbs` in the JSON. See `docs/CASE_STUDY.md`
 > section 3.3.
 
-> **Kernel versions.** The 6B and 6C blocks below were captured with the v2 tiled kernel
-> (commit 1e178db, `TILE_Y=8, PENCIL_Z=20`). The 5B block and the `0.71x`/`0.72x`
+> **Kernel versions.** The 5B, 6B and 6C blocks were captured with the v2 tiled kernel
+> (commit 1e178db, `TILE_Y=8, PENCIL_Z=20`). The `0.71x`/`0.72x`
 > figures elsewhere in this guide are from the v1 kernel (`8/12`) and are kept as history;
 > see `docs/CASE_STUDY.md` section 3.8 for the comparison.
 
@@ -502,8 +499,8 @@ Results written to: results/bench_naive.json
     --output results/bench_tiled.json
 ```
 
-**Measured output (reference hardware, this repo's current default,
-TILE_Y=8/PENCIL_Z=12):**
+**Measured output (reference hardware, v2 kernel, this repo's current default,
+TILE_Y=8/PENCIL_Z=20):**
 ```
 === bench_tiled — naive vs shared-memory tiled ===
 
@@ -532,13 +529,10 @@ Results written to: results/bench_tiled_naive.json
 **Tiled is below 1.0× at every grid size shown above — this is the
 expected, reproducible result on this GPU class**, not a tuning
 mistake you haven't found yet (it holds across a wider sweep; see
-Section 8B and `docs/CASE_STUDY.md` §3.2). The per-run "Summary"
-tables (the `── Naive ──` / `── Tiled ──` blocks a full sweep run
-prints below the main table) have a separate, known bug: their
-own Speedup column compares every row against the *first* row
-regardless of grid size, producing meaningless values like `0.06×`,
-`0.02×`, `0.00×`. Ignore that column; use the `ms/step` and `GB/s`
-columns per row instead (tracked as checklist item M1).
+Section 8B and `docs/CASE_STUDY.md` §3.2). The per-run "Summary" tables (the `── Naive ──` / `── Tiled ──` blocks a full
+sweep run prints below the main table) used to carry a Speedup column that compared
+every row against the first row (meaningless values like `0.06×`). That was fixed
+(checklist M1): they now have a Grid column and no cross-size Speedup column.
 
 ### 6C — Scaling benchmark (single-GPU roofline)
 
@@ -569,8 +563,8 @@ Scaling results written to: results/bench_scaling.json
 ```
 
 > **`BW Eff.`** is now compulsory-traffic GB/s divided by the derived peak, so it is
-> a meaningful fraction at large grids (about 67% for tiled at 512^3). Small grids
-> (96^3 reads 98%) can be inflated by L2 reuse. It is a lower-bound-bytes estimate,
+> a meaningful fraction at large grids (about 81% for tiled at 512^3, v2 kernel). Small grids
+> (96^3 reads 119%) can be inflated by L2 reuse. It is a lower-bound-bytes estimate,
 > not a counter measurement; see `docs/CASE_STUDY.md` section 3.3.
 
 ### 6D — DRAM bandwidth test (STREAM-style, optional)
@@ -588,6 +582,19 @@ read about 188 GB/s (97.8% of 192.0), write about 184 GB/s (96%), copy about
 about 188 GB/s is achievable, consistent with the derived peak. Use `--warmup 10`
 or more: a short warmup gave a copy median of 151 GB/s. In a CPU-fallback build the
 binary compiles and prints a "skipped" line. See `docs/CASE_STUDY.md` §3.7.
+
+### 6E — Repeat the headline comparison (mean ± sd)
+
+A single run is a point estimate. To quote the 512³ ratio with an error bar, repeat the
+naive-vs-tiled pair (each `stencil_tiled` run is already an alternating pair):
+
+```bash
+python3 scripts/repeat_bench.py --binary build/bin/stencil_tiled --nx 512 --runs 10 --pause 5
+```
+
+It prints per-run times, the mean/sd/95% CI of the per-pair speed ratio (naive time ÷ tiled
+time), and a Markdown line to paste into the README. Per-run JSONs go to `results/repeat/`
+(git-ignored). Avoid `--nx 256`, which triggers the 128/256/512 sweep.
 
 ---
 
@@ -628,11 +635,34 @@ disagree again, check that `write_markdown_report()` reads
 >
 > With L1 the roofline uses arithmetic intensity 56 FLOP / 16 B = 3.5, so the memory
 > roof is about 3.5 x 192 = 672 GFLOP/s and the naive and tiled points sit below it
-> (naive about 93%, tiled about 67%).
+> (naive about 93%, tiled about 81% with the v2 kernel).
+
+---
+
+## Section 7B — Animation and story charts
+
+```bash
+# GPU path: write the middle slice every 4 steps (modest grid; every frame downloads the field)
+./build/bin/stencil_slice --nx 128 --steps 240 --every 4 --slice-out results/wave
+
+# No-GPU path: NumPy version of the same scheme, same file format
+python3 scripts/reference_slice.py --n 128 --steps 240 --every 4 --out results/wave
+
+python3 scripts/make_slice_gif.py --prefix results/wave --out docs/media/wave_slice.gif
+python3 scripts/make_story_plots.py --outdir docs/plots
+```
+
+`make_story_plots.py` redraws the README charts from the numbers recorded in
+`docs/CASE_STUDY.md`; update the tables at the top of the script if you re-measure.
 
 ---
 
 ## Section 8 — Nsight profiling
+
+> **Which kernel these numbers are from.** The counter, sweep and timeline figures in
+> 8B–8E (registers, occupancy, barrier stalls, DRAM bytes, the `TILE_Y ≤ 17` limit)
+> were collected on the **v1** kernel (40-wide blocks). The v2 kernel (32 × `TILE_Y`
+> blocks, commit 1e178db) has a single counter capture so far (`docs/CASE_STUDY.md` §3.8).
 
 ### 8A — One-time setup
 
@@ -658,13 +688,14 @@ only apply the fix above if you hit `ERR_NVGPUCTRPERM` in its output.
 Don't jump straight into `ncu`/`nsys` on the default tuning — establish
 which `TILE_Y`/`PENCIL_Z` is actually best for your card first, since
 profiling a mistuned config just documents the mistuning. Only test
-`TILE_Y ≥ 8`: the kernel pays a fixed `2·STENCIL_RADIUS = 8`-cell halo
+`TILE_Y ≥ 8` (a v1 finding; v2 has not been swept below 8): the v1 kernel pays a fixed `2·STENCIL_RADIUS = 8`-cell halo
 border in both X and Y regardless of tile size, so shrinking `TILE_Y`
 below 8 shrinks the *useful* fraction of every block faster than it
 shrinks the overhead — `TILE_Y=4` measures worse than the default, not
 better. Also respect the hard ceiling: `TILE_X=32` is fixed (warp size),
-and CUDA caps blocks at 1024 threads, so `40 × (TILE_Y+8) ≤ 1024` means
-`TILE_Y ≤ 17` — anything at or above `32` fails at launch with
+and CUDA caps blocks at 1024 threads. For the v1 kernel (`40 × (TILE_Y+8)` threads) that
+meant `TILE_Y ≤ 17`; the v2 kernel's block is `32 × TILE_Y`, so its hard cap is
+`TILE_Y ≤ 32` (register limits may bite sooner). Exceeding the cap fails at launch with
 `invalid configuration argument`.
 
 ```bash
@@ -752,7 +783,7 @@ throughout `docs/CASE_STUDY.md`.)
 > times (you'll see `"kernel_tiled" - 0 (1/1): ... - 7 passes` or
 > similar) to collect the full metric set, and that replay overhead is
 > counted inside the binary's own `GpuTimer`. A tiled kernel that
-> normally takes ~17ms can print `500+ ms` here — that's an artifact of
+> normally takes ~13 ms (v2; ~16 ms for v1) can print `500+ ms` here — that's an artifact of
 > profiling instrumentation, not a real regression. The metrics stored
 > in the `.ncu-rep` file are unaffected and are what you actually want;
 > ignore the console `ms/step`/`GB/s`/speedup line entirely when `ncu`
@@ -928,11 +959,12 @@ docker run --rm stencil-solver:ci
 CI uses `STENCIL_CPU_FALLBACK=ON`, so this step is identical
 regardless of what GPU you have.
 
-*Note: the workflow files that are supposed to run this automatically
-on GitHub currently live under `infra/.github/workflows/`, which
-GitHub does not read (it only looks at a root-level `.github/`). CI is
-not actually running on pushes/PRs until that's fixed — out of scope
-for this guide; tracked separately.*
+*Note: the workflows now live in the root-level `.github/workflows/` (`ci.yml`,
+`benchmark.yml`, `release.yml`), where GitHub reads them. `ci.yml` runs the format
+check and the CPU-fallback build with unit tests. Its GPU-test, coverage and
+clang-tidy jobs are switched off (`if: false`), and `benchmark.yml` / `release.yml`
+need a `[self-hosted, gpu, cuda]` runner that is not registered, so GPU tests,
+benchmarks and profiling are run locally.*
 
 ---
 
@@ -946,8 +978,8 @@ for this guide; tracked separately.*
 | Tiled kernel benchmarks slower than naive across the board | This is the measured, reproducible result on this GPU class, confirmed across a wide `TILE_Y`/`PENCIL_Z` sweep — not a tuning mistake | See `docs/CASE_STUDY.md` for the full sweep and the counter-level cause (barrier stalls, extra DRAM traffic); with the v2 kernel the default `TILE_Y=8, PENCIL_Z=20` reaches ≈0.87× at 512³ (v1 was ≈0.71×), still a loss at DRAM-bound sizes |
 | Device banner prints `Peak bandwidth: 96.0 GB/s` | The `memoryClockRate * memoryBusWidth / 8` formula in `src/main_*.cpp` and `tests/perf/bench_*.cpp` omits GDDR's ×2 DDR transfer factor | Fixed in the current repo (look for a commit titled "Fix peak DRAM bandwidth..."); expect `192.0 GB/s` after rebuilding. If you still see `96.0`, you're on an older commit or a stale build directory |
 | `docs/BENCHMARKS.md` "Average speedup" doesn't match the per-row table's sign | `write_markdown_report()` in `plot_results.py` averaged `tiled/naive` instead of `naive/tiled` | Fixed in the current repo; if you still see this, check `scripts/plot_results.py` for `speedups.append(n_r["time_ms"] / t_r["time_ms"])` |
-| A multi-size sweep's "Summary" table used to show a Speedup column like `1.00×, 0.12×, 0.02×` | `format_perf_table()` compared every row to row 0 regardless of grid size | Fixed (checklist M1): the tables now carry a Grid column and no cross-size Speedup | Rebuild from the current repo |
-| `ctest --label-regex unit` doesn't report 59 tests | A test file wasn't wired into `add_unit_test(...)` in `tests/CMakeLists.txt`, or you're comparing against an older/incorrect expected count | Re-check `tests/CMakeLists.txt`; 59 is the correct total for `test_fd_coeffs`, `test_grid`, `test_timer`, `test_solver_cpu`, `test_solver`, `test_kernels` |
+| A multi-size sweep's "Summary" table used to show a Speedup column like `1.00×, 0.12×, 0.02×` | `format_perf_table()` compared every row to row 0 regardless of grid size | Fixed (checklist M1): the tables now carry a Grid column and no cross-size Speedup; rebuild from the current repo |
+| `ctest --label-regex unit` doesn't report 70 tests | A test file wasn't wired into `add_unit_test(...)` in `tests/CMakeLists.txt`, or you're comparing against an older/incorrect expected count | Re-check `tests/CMakeLists.txt`; 70 is the correct total for `test_fd_coeffs`, `test_grid`, `test_timer`, `test_io`, `test_solver_cpu`, `test_solver`, `test_kernels` |
 | Reported GB/s exceeds this GPU's peak at small grid sizes (or even at 512³) | `bandwidth_bytes_per_step()` assumes zero cache reuse; the resulting number tracks L2 traffic, not DRAM bandwidth, at any grid size | Fixed by L1: `GB/s` is now compulsory traffic (4 x interior x 4 B) / time, so it tracks DRAM to within a few percent at large grids. Small grids (<= ~192^3) can still exceed peak because they fit in the 24 MiB L2. The old figure is `model_bandwidth_gbs` in the JSON; see `docs/CASE_STUDY.md` §3.3 |
 | `bench_scaling`'s `BW Eff.` column reads well above 100% (even 700%+) | Same model-vs-measured-bytes issue as above; the peak-bandwidth fix alone doesn't correct the numerator | Fixed by L1 (compulsory-traffic numerator): 512^3 now reads about 67%. Old JSON files from before L1 still hold the model figure under `bandwidth_gbs`; don't mix them in one plot |
 | `docs/plots/*.png` or `docs/BENCHMARKS.md` fails to write with `PermissionError` | A prior Docker run (without `--user "$(id -u):$(id -g)"`) left `docs/plots/` (or another output directory) root-owned | `sudo chown -R "$USER:$USER" docs/plots` (or whichever directory is affected) |
@@ -975,7 +1007,7 @@ for this guide; tracked separately.*
 | `bench_tiled` | Same | Console: naive+tiled side-by-side table. Two JSON files |
 | `bench_scaling` | Grid sweep | Console: BW efficiency % table (compulsory-traffic GB/s relative to ~192 GB/s; see 6C) |
 | `bench_stream` | Buffer size, reps | Console: read/write/copy GB/s and % of derived peak. Optional JSON |
-| `test_*` | (none) | GoogleTest pass/fail output — 59 unit tests, 15 GPU tests |
+| `test_*` | (none) | GoogleTest pass/fail output — 70 unit tests, 15 GPU tests |
 
 ---
 
@@ -991,7 +1023,7 @@ cmake -B build -S . -DSTENCIL_BUILD_TESTS=ON \
     -DSTENCIL_TILE_Y=8 -DSTENCIL_PENCIL_Z=20
 cmake --build build --parallel $(nproc)
 
-# Unit tests (expect 59/59)
+# Unit tests (expect 70/70)
 ctest --test-dir build --output-on-failure --label-regex unit --parallel $(nproc)
 
 # Single naive run at a size that isn't the 256 default
@@ -1161,3 +1193,17 @@ reference hardware):**
 26. **Reported bandwidth is now compulsory traffic**, not the no-reuse model: naive 512^3 reads
     about 178 GB/s (about 93% of 192), tiled about 128, `BW Eff.` about 67%. The old figure is
     kept as `model_bandwidth_gbs`. 5B/6A/6B/6C blocks re-captured.
+
+**Doc-sync pass (v2 kernel, test count, CI location):**
+
+27. **Items 24-26 describe earlier states and are kept as history.** Current state: the
+    tiled kernel is v2 (32 x `TILE_Y` blocks), the default is `TILE_Y=8, PENCIL_Z=20`,
+    tiled is about 0.87x of naive at 512^3, and the 5B, 6B and 6C blocks are v2 captures.
+28. **Unit-test count corrected from 59 to 70** (adds `test_io` and the newer timer
+    tests); GPU test IDs from 60-74 to 71-85.
+29. **`BW Eff.` for tiled at 512^3** corrected from about 67% (v1) to about 81% (v2), and
+    the 96^3 figure from 98% to 119%, to match the 6C table.
+30. **6B** now says the Summary-table Speedup bug is fixed (M1). **Section 10** says the
+    workflows are in root `.github/workflows/` with several jobs disabled. **Section 8**
+    labels v1 vs v2 numbers and gives the v2 `TILE_Y <= 32` block limit. The build tree
+    lists `bench_stream`.

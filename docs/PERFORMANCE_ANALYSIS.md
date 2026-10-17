@@ -1,5 +1,16 @@
 # Performance Analysis: Tiled Kernel Regression on Ada-Class Laptop GPUs
 
+> **SUPERSEDED by `docs/CASE_STUDY.md`.** This first-pass analysis is kept for history.
+> Known outdated points:
+> 1. Peak DRAM bandwidth is about 192 GB/s, not 96 (the code omitted the DDR x2 factor).
+> 2. The register-pressure/occupancy chain is not a general explanation: barrier stalls
+>    and halo-only warps matter more, and occupancy does not order the configurations.
+> 3. The 1000+ GB/s figures were a no-reuse model that tracks L2 traffic; reported GB/s is
+>    now compulsory-traffic bytes over time.
+> 4. The best v1 configuration is 8/12 (about 0.71x), not 16/24.
+> 5. The v2 kernel (commit 1e178db) reaches about 0.87x at the new default 8/20.
+> 6. The tooling bugs in Appendix A.2-A.4 are fixed, and the unit-test count (A.9) is 70.
+
 **Subject:** `kernel_tiled` (shared-memory + register-pencil stencil kernel)
 **Hardware under test:** NVIDIA GeForce RTX 4050 Laptop GPU (Ada Lovelace, SM 8.9, 20 SMs, 6.1 GB, ~96 GB/s peak DRAM bandwidth)
 **Status:** Root-caused and confirmed with hardware counters. Not resolved — see Recommendations.

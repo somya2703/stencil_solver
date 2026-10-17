@@ -9,11 +9,10 @@
  * interior point is loaded ~8 times across the warp.
  *
  * This is the BEFORE state for Nsight-driven optimisation.
- * Expected Nsight Compute findings:
- *   - DRAM bandwidth close to peak (memory-bound)
- *   - L1/L2 hit rate low (~0%)  for Z and Y directions
- *   - Achieved occupancy: moderate (~50%) due to register pressure
- *   - Memory throughput: ~40-60% of peak (uncoalesced Y/Z loads)
+ * Measured on an RTX 4050 Laptop (docs/CASE_STUDY.md 3.3-3.4):
+ *   - DRAM throughput ~96% of peak (memory-bound), 1.59 GB read per step
+ *   - L2 absorbs most redundant neighbour reads (DRAM bytes ~9x below the no-reuse model)
+ *   - 40 registers per thread, achieved occupancy ~85%
  *
  * Physics: acoustic wave equation (second-order leapfrog)
  *   p_next = 2·p_cur - p_prev + dt² · v²(x) · ∇²p_cur

@@ -1,8 +1,8 @@
 # Nsight-Driven Optimisation Workflow
 
 This document walks through the exact profiling workflow used to identify
-the memory bottleneck in the naive kernel and verify the tiled kernel's
-improvement. It mirrors what an NVIDIA DevTech engineer would do with a
+the memory bottleneck in the naive kernel and test whether the tiled kernel improves on it (on the reference RTX 4050 it does not;
+see `docs/CASE_STUDY.md`). It mirrors what an NVIDIA DevTech engineer would do with a
 customer's stencil code.
 
 ---
@@ -120,7 +120,8 @@ ones), and the old no-reuse figure is `model_bandwidth_gbs`.
 ```
 
 **What the tiled kernel actually shows, measured on the reference
-hardware** (TILE_Y=8, PENCIL_Z=12 -- this repo's current default; full
+hardware** (v1 kernel, TILE_Y=8, PENCIL_Z=12 -- no longer the repo default, which is now the v2
+kernel at 8/20; full
 sweep and counter detail in docs/CASE_STUDY.md section 3.2-3.4):
 
 - Formula estimate: 4 × 512³ ≈ **0.54 GB** per step -- the kernel's own
@@ -149,6 +150,11 @@ sweep and counter detail in docs/CASE_STUDY.md section 3.2-3.4):
   of warp-active cycles, vs 0% for naive) and 1.6-2.4× more warp
   instructions per output cell, not a DRAM-vs-SMEM latency shift
 
+**v2 kernel (commit 1e178db, 32 × 8 blocks, `PENCIL_Z=20`):** DRAM reads 1.82 GB,
+barrier stalls 20.2%, 0.88 B warp instructions per step, and 0.87× of naive at 512³
+(v1: 0.72×). Still slower than naive, but about half the gap is closed; see
+`docs/CASE_STUDY.md` section 3.8.
+
 ### Side-by-side comparison (ncu-ui diff view)
 
 1. Open `ncu-ui`
@@ -171,16 +177,11 @@ a summary diff automatically:
 This profiles `stencil_naive` and `stencil_tiled` back-to-back and
 writes both `.ncu-rep` files to the same timestamped directory.
 
-> ⚠️ The summary diff table this mode prints is documented elsewhere in
-> this repo as broken (`ncu --csv` emits long-format CSV -- one row per
-> metric, generic `"Metric Name"`/`"Metric Value"` columns -- but the
-> script's parser looks metric names up as if they were column headers,
-> so every lookup silently returns nothing; see BUILD_AND_RUN.md's
-> Troubleshooting table). This has **not** been independently re-run and
-> confirmed as part of the current investigation -- see checklist item
-> M6. Until that's done, use Section 8C-8D of `BUILD_AND_RUN.md` for a
-> validated manual `ncu`/`ncu-ui` workflow instead of this script's
-> `compare` mode.
+> The summary diff table was fixed (checklist M6): the script now pivots `ncu`'s
+> long-format CSV, profiles each binary's own kernel via `KERNEL_FILTER`, defaults to
+> `--clock-control none` (`CLOCK_CONTROL=base` locks clocks), and prints a note when the
+> two launches ran at different DRAM clocks, in which case the DRAM % rows are not
+> comparable. See `docs/CASE_STUDY.md` section 3.7.
 
 ---
 
@@ -193,7 +194,8 @@ ncu --set roofline ./build/bin/stencil_tiled --nx 512 --steps 1
 ```
 
 Measured on this repo's reference hardware (RTX 4050 Laptop GPU, Ada
-Lovelace SM 8.9, 20 SMs), at TILE_Y=8/PENCIL_Z=12 -- the current default:
+Lovelace SM 8.9, 20 SMs), v1 kernel at TILE_Y=8/PENCIL_Z=12 (the repo default is now
+the v2 kernel at 8/20: 256-thread blocks, 61 registers per thread):
 
 | Parameter | Value |
 |---|---|
@@ -273,8 +275,8 @@ tiled point is expected to sit **higher on Y**, from better bandwidth
 utilisation, without changing the algorithm.
 
 **On this repo's reference hardware the tiled point sits LOWER than
-naive, not higher** -- naive attains ~625 GFLOP/s at 512³, tiled only
-~449 GFLOP/s (0.71× of naive's throughput). The interview-soundbite
+naive, not higher** -- naive attains ~625 GFLOP/s at 512³, tiled only ~535 GFLOP/s with the v2 kernel (0.87× of naive's throughput; v1 reached
+~449, 0.71×). The interview-soundbite
 framing below is the textbook story for the kernel's intended
 A100-class target; state plainly which hardware you're describing
 before using it, since this repo's own reference measurements are the
